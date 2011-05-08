@@ -44,6 +44,6 @@ setup(
     py_modules=[],
     packages=['proboscis'],
     scripts=[],
-    tests_require=["doctest", "nose"],
+    tests_require=["nose"],
     test_suite="nose.collector"
 )
