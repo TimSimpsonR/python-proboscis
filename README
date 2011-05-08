@@ -1,0 +1,20 @@
+Proboscis
+=========
+
+An extension for Nose that facilitates higher level testing.
+
+Changes how test classes are discovered by forcing them to register via
+decorators which contain useful metadata such as what groups they are in,
+whether or not they have dependencies on other tests, and if they should be
+ignored.
+
+Proboscis sorts all registered tests into the desired run order then
+constructs a test suite which it passes to Nose.  It can also filter this list
+so that it's possible to specify which groups of tests you wish to run without
+passing in the exact test classes.  At runtime, tests which depend on other
+tests that have failed are automatically marked as skipped.
+
+Much of this functionality was "inspired" by TestNG.  If you're coming from
+that framework, the main features Proboscis currently offers are dependent test
+ordering (currently limited to the class level) and the ability to arrange your
+tests into groups independent of the structure of their modules or packages.

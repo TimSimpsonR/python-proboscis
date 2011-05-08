@@ -1,0 +1,17 @@
+*.pyc
+*.DS_Store
+local_settings.py
+keeper
+instances
+keys
+*.noseids
+*.idea
+.vagrant
+v.sh
+nova.log
+build/*
+build-stamp
+nova.egg-info
+.bzr*
+dist*
+proboscis.egg-info*
