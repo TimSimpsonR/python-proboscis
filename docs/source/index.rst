@@ -12,12 +12,7 @@
       under the License.
 
 .. include:: ../../README
-
-.. include:: download.rst
-
-.. include:: usage.rst
-
-.. include:: pydocs.rst
+   :end-line: 21
 
 .. toctree::
    :maxdepth: 5

@@ -49,6 +49,10 @@ test classes in this group are marked as  "never_skip", which prevents them
 from not running if anything in the "integration.tests" group fails but still
 causes them to run afterwards.
 
+.. include:: ../../README
+   :start-line: 59
+   :end-line: 62
+
 Of course, whether or not its worth it to start the real database and the web
 service or if the tests instead should use mocks depends on the particulars of
 the application and the religion of the test author.
