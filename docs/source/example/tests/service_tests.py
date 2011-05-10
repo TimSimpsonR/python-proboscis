@@ -48,7 +48,7 @@ class WhenConnectingAsAdmin(unittest.TestCase):
 # Then when we're finished...
 
 register(groups=["service.shutdown"],
-         depends_on_groups=["service.tests"])
+         depends_on_groups=["service.initialization", "service.tests"])
 @test(groups=["service.shutdown"], never_skip=True)
 class StopService(unittest.TestCase):
 
