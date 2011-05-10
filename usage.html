@@ -130,7 +130,7 @@ the real problem.</p>
 <span class="c"># Then when we&#39;re finished...</span>
 
 <span class="n">register</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.shutdown&quot;</span><span class="p">],</span>
-         <span class="n">depends_on_groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.tests&quot;</span><span class="p">])</span>
+         <span class="n">depends_on_groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.initialization&quot;</span><span class="p">,</span> <span class="s">&quot;service.tests&quot;</span><span class="p">])</span>
 <span class="nd">@test</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.shutdown&quot;</span><span class="p">],</span> <span class="n">never_skip</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
 <span class="k">class</span> <span class="nc">StopService</span><span class="p">(</span><span class="n">unittest</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
 
@@ -161,9 +161,6 @@ group will be marked as &#8220;skip&#8221; instead of fail.</p>
 test classes in this group are marked as  &#8220;never_skip&#8221;, which prevents them
 from not running if anything in the &#8220;integration.tests&#8221; group fails but still
 causes them to run afterwards.</p>
-<p>Using Proboscis you can rest assured the tests will execute in the desired
-order even if you add more test classes, change their name, or move them
-to different modules.</p>
 <p>Of course, whether or not its worth it to start the real database and the web
 service or if the tests instead should use mocks depends on the particulars of
 the application and the religion of the test author.</p>
