@@ -1,10 +1,8 @@
-*****
 Usage
-*****
+=================
 
-=============
 Writing Tests
-=============
+-------------
 
 Proboscis tests are unittest.TestCase classes decorated with
 proboscis.test.
@@ -55,9 +53,8 @@ Of course, whether or not its worth it to start the real database and the web
 service or if the tests instead should use mocks depends on the particulars of
 the application and the religion of the test author.
 
-==================
 Running Proboscis
-==================
+-----------------
 
 Proboscis doesn’t have a standard script and can't automatically load modules
 in a directory, so you have to import them programmatically manually before passing control to Proboscis.

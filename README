@@ -18,3 +18,45 @@ Much of this functionality was "inspired" by TestNG.  If you're coming from
 that framework, the main features Proboscis currently offers are dependent test
 ordering (currently limited to the class level) and the ability to arrange your
 tests into groups independent of the structure of their modules or packages.
+
+With Proboscis it's possible to write tests which depend on a web service
+(or some other dependency you'd like to only initialize once) like this:
+
+.. code-block:: python
+
+    @test(groups=["service.tests"], depends_on_groups=["service.initialization"])
+    class WhenConnectingAsAdmin(unittest.TestCase):
+
+        def test_change_profile_image(self):
+            self.client = mymodule.ServiceClient(service_config)
+            self.assertEquals("default.jpg", self.client.get_profile_image())
+            self.client.set_profile_image("spam.jpg")
+            self.assertEquals("spam.jpg", self.client.get_profile_image())
+
+Then write the code to start and cleanly shut down that web service in any other
+module as a first class test itself:
+
+.. code-block:: python
+
+    @test(groups=["service.initialization"])
+    class StartWebServer(unittest.TestCase):
+
+        def test_start(self):
+            # Start up web server, then issues a connect.
+            mymodule.start_web_server()
+            client = mymodule.ServiceClient(service_config)
+            self.assertTrue(client.service_is_up)
+
+    @test(groups=["service.shutdown"], depends_on_groups=["service.tests"], \
+          never_skip=True)
+    class StopService(unittest.TestCase):
+
+        def test_stop(self):
+            client = mymodule.ServiceClient(service_config)
+            if client.service_is_up:
+                mymodule.stop_web_server()
+                self.assertFalse(client.service_is_up())
+
+Using Proboscis you can rest assured the tests will execute in the desired
+order even if you add more test classes, change their name, or move them
+to different modules.
