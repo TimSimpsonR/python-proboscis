@@ -17,6 +17,7 @@
    :maxdepth: 2
 
    usage
+   download
    pydocs
 
 
