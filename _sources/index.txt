@@ -13,8 +13,14 @@
 
 .. include:: ../../README
 
+.. include:: download.rst
+
+.. include:: usage.rst
+
+.. include:: pydocs.rst
+
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 5
 
    usage
    download
@@ -27,4 +33,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
