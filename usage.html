@@ -1,0 +1,290 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Usage &mdash; proboscis v1.0 documentation</title>
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1.0',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="proboscis v1.0 documentation" href="index.html" />
+    <link rel="next" title="Download" href="download.html" />
+    <link rel="prev" title="Proboscis" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="download.html" title="Download"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Proboscis"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">proboscis v1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="usage">
+<h1>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="writing-tests">
+<h2>Writing Tests<a class="headerlink" href="#writing-tests" title="Permalink to this headline">¶</a></h2>
+<p>Proboscis tests are unittest.TestCase classes decorated with
+proboscis.test.</p>
+<p>In fact, true unit tests are indistinguishable from Nose tests except that they
+require the test decorator.</p>
+<p>Here&#8217;s an example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">unittest</span>
+<span class="kn">import</span> <span class="nn">mymodule</span>
+<span class="kn">from</span> <span class="nn">proboscis</span> <span class="kn">import</span> <span class="n">test</span>
+
+<span class="nd">@test</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;unit&quot;</span><span class="p">])</span>
+<span class="k">class</span> <span class="nc">TestReverseString</span><span class="p">(</span><span class="n">unittest</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">test_reversal</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">original</span> <span class="o">=</span> <span class="s">&quot;hello&quot;</span>
+        <span class="n">expected</span> <span class="o">=</span> <span class="s">&quot;olleh&quot;</span>
+        <span class="n">actual</span> <span class="o">=</span> <span class="n">mymodule</span><span class="o">.</span><span class="n">reverse</span><span class="p">(</span><span class="n">original</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">expected</span><span class="p">,</span> <span class="n">actual</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Proboscis is more useful for higher level tests which may have dependencies on
+each other or need to run in a guaranteed order.</p>
+<p>Nose can order tests based on their placement and name but the effect is
+difficult to maintain, especially when working with multiple modules.
+Additionally, if one test performs some sort of initialization to produce a
+state required by other tests and fails, the dependent tests run despite
+having no chance of succeeding. These additional failures pollute the results
+making the true problem harder to see.</p>
+<p>In Proboscis, if one tests depends on another which fails, the
+dependent test raises SkipTest automatically, making it easier to track down
+the real problem.</p>
+<p>For example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">unittest</span>
+<span class="kn">import</span> <span class="nn">mymodule</span>
+<span class="kn">from</span> <span class="nn">proboscis</span> <span class="kn">import</span> <span class="n">register</span>
+<span class="kn">from</span> <span class="nn">proboscis</span> <span class="kn">import</span> <span class="n">test</span>
+
+<span class="n">service_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">&quot;user_name&quot;</span><span class="p">:</span><span class="s">&quot;bob&quot;</span><span class="p">,</span>
+    <span class="s">&quot;pass_word&quot;</span><span class="p">:</span><span class="s">&quot;pass_word&quot;</span>
+<span class="p">}</span>
+
+<span class="nd">@test</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.initialization&quot;</span><span class="p">])</span>
+<span class="k">class</span> <span class="nc">CreateDatabase</span><span class="p">(</span><span class="n">unittest</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Creates a local database.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">test_create</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">mymodule</span><span class="o">.</span><span class="n">create_database</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="n">mymodule</span><span class="o">.</span><span class="n">tables_exist</span><span class="p">())</span>
+
+<span class="nd">@test</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.initialization&quot;</span><span class="p">])</span>
+<span class="k">class</span> <span class="nc">StartWebServer</span><span class="p">(</span><span class="n">unittest</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Starts the web server.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">test_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c"># Start up web server then issue a connect to make sure its up.</span>
+        <span class="n">mymodule</span><span class="o">.</span><span class="n">start_web_server</span><span class="p">()</span>
+        <span class="n">client</span> <span class="o">=</span> <span class="n">mymodule</span><span class="o">.</span><span class="n">ServiceClient</span><span class="p">(</span><span class="n">service_config</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">service_is_up</span><span class="p">)</span>
+
+<span class="n">register</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.tests&quot;</span><span class="p">],</span>
+         <span class="n">depends_on_groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.initialization&quot;</span><span class="p">])</span>
+
+<span class="nd">@test</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.tests&quot;</span><span class="p">])</span>
+<span class="k">class</span> <span class="nc">WhenConnectingAsAdmin</span><span class="p">(</span><span class="n">unittest</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">setUp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">mymodule</span><span class="o">.</span><span class="n">ServiceClient</span><span class="p">(</span><span class="n">service_config</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">test_has_credentials</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">check_credentials</span><span class="p">,</span>
+                         <span class="n">mymodule</span><span class="o">.</span><span class="n">ServiceClient</span><span class="o">.</span><span class="n">ADMIN</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">test_change_profile_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEquals</span><span class="p">(</span><span class="s">&quot;default.jpg&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get_profile_image</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">set_profile_image</span><span class="p">(</span><span class="s">&quot;spam.jpg&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEquals</span><span class="p">(</span><span class="s">&quot;spam.jpg&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get_profile_image</span><span class="p">())</span>
+
+<span class="c"># Add more tests in the service.tests group here, or in any other file.</span>
+<span class="c"># Then when we&#39;re finished...</span>
+
+<span class="n">register</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.shutdown&quot;</span><span class="p">],</span>
+         <span class="n">depends_on_groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.tests&quot;</span><span class="p">])</span>
+<span class="nd">@test</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.shutdown&quot;</span><span class="p">],</span> <span class="n">never_skip</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">StopService</span><span class="p">(</span><span class="n">unittest</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">test_stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">client</span> <span class="o">=</span> <span class="n">mymodule</span><span class="o">.</span><span class="n">ServiceClient</span><span class="p">(</span><span class="n">service_config</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">client</span><span class="o">.</span><span class="n">service_is_up</span><span class="p">:</span>
+            <span class="n">mymodule</span><span class="o">.</span><span class="n">stop_web_server</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">assertFalse</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">service_is_up</span><span class="p">())</span>
+
+
+<span class="nd">@test</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.shutdown&quot;</span><span class="p">],</span> <span class="n">never_skip</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">DestroyDatabase</span><span class="p">(</span><span class="n">unittest</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">test_stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">mymodule</span><span class="o">.</span><span class="n">destroy_database</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>This code models an end user hitting a web service to change his profile
+pictures.</p>
+<p>To do this without mocking anything, it has to set up a local
+database instance and  start the actual web service.  This is done in the
+group marked &#8220;service.initialization.&#8221; Because the &#8220;service.tests&#8221; group
+depends on it, those tests can assume that the services are up.</p>
+<p>Additionally, if the initialization phase fails somehow it will
+be represented like any other test, and all tests in the integration.tests
+group will be marked as &#8220;skip&#8221; instead of fail.</p>
+<p>When the tests are finished the group &#8220;integration.shutdown&#8221; runs.  The two
+test classes in this group are marked as  &#8220;never_skip&#8221;, which prevents them
+from not running if anything in the &#8220;integration.tests&#8221; group fails but still
+causes them to run afterwards.</p>
+<p>Of course, whether or not its worth it to start the real database and the web
+service or if the tests instead should use mocks depends on the particulars of
+the application and the religion of the test author.</p>
+</div>
+<div class="section" id="running-proboscis">
+<h2>Running Proboscis<a class="headerlink" href="#running-proboscis" title="Permalink to this headline">¶</a></h2>
+<p>Proboscis doesn’t have a standard script and can&#8217;t automatically load modules
+in a directory, so you have to import them programmatically manually before passing control to Proboscis.</p>
+<p>Proboscis requires test modules to be imported manually and any project
+using it will need to write its own main test script.  Don&#8217;t worry though
+because this is pretty easy.  Such a script is also normally a good place
+to specify additional bits of configuration or organization.</p>
+<p>Here&#8217;s an example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">proboscis</span> <span class="kn">import</span> <span class="n">register</span>
+<span class="kn">from</span> <span class="nn">proboscis</span> <span class="kn">import</span> <span class="n">TestProgram</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="c"># Import all modules which have been decorated with @test.</span>
+    <span class="kn">from</span> <span class="nn">tests</span> <span class="kn">import</span> <span class="n">util_test</span>
+    <span class="kn">from</span> <span class="nn">tests</span> <span class="kn">import</span> <span class="n">service_tests</span>
+
+    <span class="c"># Now create some groups of groups.</span>
+    <span class="n">register</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;fast&quot;</span><span class="p">],</span> <span class="n">depends_on_groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;unit&quot;</span><span class="p">])</span>
+    <span class="n">register</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;integration&quot;</span><span class="p">],</span>
+             <span class="n">depends_on_groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;service.initialize&quot;</span><span class="p">,</span>
+                                <span class="s">&quot;service.tests&quot;</span><span class="p">,</span>
+                                <span class="s">&quot;service.shutdown&quot;</span><span class="p">])</span>
+    <span class="n">register</span><span class="p">(</span><span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;slow&quot;</span><span class="p">],</span>
+             <span class="n">depends_on_groups</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;fast&quot;</span><span class="p">,</span> <span class="s">&quot;integration&quot;</span><span class="p">])</span>
+
+    <span class="c"># Run Proboscis and exit.</span>
+    <span class="n">TestProgram</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The class proboscis.TestProgram passes control to nose.core.TestProgram
+(which passes control to the unittest module) and exits the program.
+By default, proboscis.TestProgram reads arguments from sys.argv.
+Assuming this script was named runtests.py, you&#8217;d could run all the tests
+using this command:</p>
+<div class="highlight-bash"><div class="highlight"><pre>python runtests.py
+</pre></div>
+</div>
+<p>...run just the unit tests with this one:</p>
+<div class="highlight-bash"><div class="highlight"><pre>python runtests.py --group<span class="o">=</span>unit
+</pre></div>
+</div>
+<p>...or run all the slow tests:</p>
+<div class="highlight-bash"><div class="highlight"><pre>python runtests.py --group<span class="o">=</span>slow
+</pre></div>
+</div>
+<p>You can see how Proboscis will order the tests using the &#8211;show-plan option.</p>
+<div class="highlight-bash"><div class="highlight"><pre>python runtests.py --groups<span class="o">=</span>slow --show-plan
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="#">Usage</a><ul>
+<li><a class="reference external" href="#writing-tests">Writing Tests</a></li>
+<li><a class="reference external" href="#running-proboscis">Running Proboscis</a></li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="index.html"
+                                  title="previous chapter">Proboscis</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="download.html"
+                                  title="next chapter">Download</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="_sources/usage.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="download.html" title="Download"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Proboscis"
+             >previous</a> |</li>
+        <li><a href="index.html">proboscis v1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2011, Rackspace.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>
