@@ -463,17 +463,20 @@ class TestProgram(core.TestProgram):
             for entry in self.entries:
                 if not entry.info.ignore and entry.cls != None:
                     self.add_test_case(entry)
-            core.TestProgram.__init__(
-                self,
-                suite=self.__suite,
-                config=config,
-                env=env,
-                plugins=plugins,
-                testLoader=testLoader,  # Pass arg, not what we create
-                testRunner=testRunner,
-                argv=argv,
-                *args, **kwargs
-            )
+            def run():
+                core.TestProgram.__init__(
+                    self,
+                    suite=self.__suite,
+                    config=config,
+                    env=env,
+                    plugins=plugins,
+                    testLoader=testLoader,  # Pass arg, not what we create
+                    testRunner=testRunner,
+                    argv=argv,
+                    *args, **kwargs
+                )
+            self.call_nose = run
+
 
     def add_test_case(self, entry):
         """Creates and adds a standard Nose test case from a TestEntry."""
@@ -498,6 +501,9 @@ class TestProgram(core.TestProgram):
                 new_argv.append(arg)
         return new_argv
 
+    def run_and_exit(self):
+        self.call_nose()
+
     def show_plan(self):
         """Prints information on test entries and the order they will run."""
         import pydoc
@@ -509,3 +515,7 @@ class TestProgram(core.TestProgram):
                 print(doc)
             for field in str(entry.info).split(', '):
                 print("\t" + field)
+    
+    @property
+    def test_suite(self):
+        return self.__suite

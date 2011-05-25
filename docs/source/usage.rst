@@ -72,7 +72,12 @@ Here's an example:
 
 .. include:: ../build/py2rst/runtests.py
 
-The class proboscis.TestProgram passes control to nose.core.TestProgram
+The constructor of the class proboscis.TestProgram sorts and filters the test
+suite (using the command line arguments as described below) on creation.  Be
+warned that it should only be called once- calling it multiple times will lead
+to strange behavior.
+
+The method "run_and_exit" passes control to nose.core.TestProgram
 (which passes control to the unittest module) and exits the program.
 By default, proboscis.TestProgram reads arguments from sys.argv.
 Assuming this script was named runtests.py, you'd could run all the tests

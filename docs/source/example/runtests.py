@@ -16,4 +16,4 @@ if __name__ == '__main__':
              depends_on_groups=["fast", "integration"])
 
     # Run Proboscis and exit.
-    TestProgram()
+    TestProgram().run_and_exit()
