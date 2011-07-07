@@ -24,6 +24,7 @@ run as tests.  Much of this functionality was "inspired" by TestNG.
 
 import os
 import sys
+import types
 import unittest
 from collections import deque
 from nose import core
@@ -32,6 +33,19 @@ from nose.plugins.skip import SkipTest
 
 from proboscis.decorators import decorate_class
 
+
+def adapt_test_home(home):
+    """If home isn't a class, its wrapped in one and returned."""
+    if not home:
+        return home
+    if isinstance(home, (types.ClassType, types.TypeType)):
+        return home
+    if isinstance(home, types.FunctionType):
+        new_dict = unittest.TestCase.__dict__.copy()
+        new_dict["test_" + home.__name__] = home
+        return type(home.__name__ + "_", (unittest.TestCase, ), new_dict)
+    else:
+        raise TypeError("Cannot register as test " + home)
 
 class TestRegistry(object):
     """Stores test information."""
@@ -78,6 +92,7 @@ class TestRegistry(object):
 
     def register(self, cls=None, **kwargs):
         """Registers a test entry."""
+        cls = adapt_test_home(cls)
         if self.__has_been_sorted:
             raise RuntimeError("New entries not allowed after call to sort.")
         info = TestCaseInfo(**kwargs)
@@ -328,16 +343,18 @@ def test(cls=None, **kwargs):
 class TestResultListener():
     """Implements methods of TestResult to be informed of test failures."""
 
-    def __init__(self):
-        pass
+    def __init__(self, chain_to_cls):
+        self.chain_to_cls = chain_to_cls
 
     def addError(self, test, err):
         self.onError(test)
         result.TextTestResult.addError(self, test, err)
+        self.chain_to_cls.addError(self, test, err)
 
     def addFailure(self, test, err):
         self.onError(test)
         result.TextTestResult.addFailure(self, test, err)
+        self.chain_to_cls.addFailure(self, test, err)
 
     def onError(self, test):
         """Notify a test entry and its dependents of failure."""
@@ -353,7 +370,7 @@ class TestResult(TestResultListener, result.TextTestResult):
 
     def __init__(self, stream, descriptions, verbosity, config=None,
                  errorClasses=None):
-        TestResultListener.__init__(self)
+        TestResultListener.__init__(self, result.TextTestResult)
         result.TextTestResult.__init__(self, stream, descriptions, verbosity,
                                        config, errorClasses)
 
