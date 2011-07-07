@@ -47,24 +47,30 @@ class TestRegistry(object):
         if not group_name in self.groups:
             self.groups[group_name] = TestGroup(group_name)
 
-    def filter_test_list(self, group_names=None, classes=None):
+    def filter_test_list(self, group_names=None, classes=None, functions=None):
         """Whittles down test list to hose matching criteria."""
         if not self.__has_been_sorted:
             raise RuntimeError("Can't filter an unsorted list.")
+        test_homes = []
         classes = classes or []
+        functions = functions or []
+        for cls in classes:
+            test_homes.append(cls)
+        for function in functions:
+            test_homes.append(function)
         group_names = group_names or []
         filtered_list = []
         while self.tests:
             entry = self.tests.pop()
-            if entry.contains(group_names, classes):
+            if entry.contains(group_names, test_homes):
                 filtered_list.append(entry)
                 # Add any groups this depends on so they will run as well.
                 for group_name in entry.info.depends_on_groups:
                     if not group_name in group_names:
                         group_names.append(group_name)
-                for cls in entry.info.depends_on_classes:
-                    if not cls in classes:
-                        classes.append(cls)
+                for test_home in entry.info.depends_on:
+                    if not test_home in test_homes:
+                        test_homes.append(test_home)
         self.tests = list(reversed(filtered_list))
 
     def get_group(self, group_name):
@@ -108,22 +114,26 @@ class TestCaseInfo:
 
     def __init__(self,
                  groups=None,
+                 depends_on=None,
                  depends_on_classes=None,
                  depends_on_groups=None,
                  enabled=True,
                  never_skip=False):
         groups = groups or []
+        depends_on = depends_on or []
         depends_on_classes = depends_on_classes or []
+        for cls in depends_on_classes:
+            depends_on.append(cls)
         depends_on_groups = depends_on_groups or []
         self.groups = groups
-        self.depends_on_classes = depends_on_classes
+        self.depends_on = depends_on
         self.depends_on_groups = depends_on_groups
         self.enabled = enabled
         self.never_skip = never_skip
 
     def __repr__(self):
         return "TestCaseInfo(groups=" + str(self.groups) + \
-               ", depends_on_classes=" + str(self.depends_on_classes) + \
+               ", depends_on=" + str(self.depends_on) + \
                ", depends_on_groups=" + str(self.depends_on_groups) + \
                ", enabled=" + str(self.enabled) + ")"
 
@@ -131,7 +141,7 @@ class TestCaseInfo:
         return "groups = " + str(self.groups) + \
                ", enabled = " + str(self.enabled) + \
                ", depends_on_groups = " + str(self.depends_on_groups) + \
-               ", depends_on_classes = " + str(self.depends_on_classes)
+               ", depends_on = " + str(self.depends_on)
 
 
 class TestGroup(object):
@@ -159,13 +169,13 @@ class TestEntry(object):
     in the dependencies of this test (used to raise SkipTest if needed).
 
     """
-    def __init__(self, cls, info):
-        self.cls = cls
+    def __init__(self, home, info):
+        self.home = home
         self.info = info
         self.dependents = []  # This is populated when we sort the tests.
         self.dependency_failure = None
-        for d_cls in self.info.depends_on_classes:
-            if d_cls is self.cls:
+        for dep in self.info.depends_on:
+            if dep is self.home:
                 raise RuntimeError("TestEntry depends on its own class:" +
                                    str(self))
         for dependency_group in self.info.depends_on_groups:
@@ -178,7 +188,7 @@ class TestEntry(object):
         """If a dependency has failed, SkipTest is raised."""
         if self.dependency_failure != None and self.dependency_failure != self\
            and not self.info.never_skip:
-            raise SkipTest("Failure in " + str(self.dependency_failure.cls))
+            raise SkipTest("Failure in " + str(self.dependency_failure.home))
 
     def contains(self, group_names, classes):
         """True if this belongs to any of the given groups or classes."""
@@ -186,7 +196,7 @@ class TestEntry(object):
             if group_name in self.info.groups:
                 return True
         for cls in classes:
-            if cls == self.cls:
+            if cls == self.home:
                 return True
         return False
 
@@ -200,11 +210,11 @@ class TestEntry(object):
                 dependent.fail_test(dependency_failure=dependency_failure)
 
     def __repr__(self):
-        return "TestEntry(" + repr(self.cls) + ", " + \
+        return "TestEntry(" + repr(self.home) + ", " + \
                repr(self.info) + ", " + object.__repr__(self) + ")"
 
     def __str__(self):
-        return "Class = " + str(self.cls) + ", Info(" + str(self.info) + ")"
+        return "Home = " + str(self.home) + ", Info(" + str(self.info) + ")"
 
 
 class TestNode:
@@ -263,10 +273,10 @@ class TestGraph:
                 d_group_nodes = self.nodes_for_group(dependency_group)
                 for dependency_group_node in d_group_nodes:
                     node.add_dependency(dependency_group_node)
-            for dependency_class in node.entry.info.depends_on_classes:
-                d_class_nodes = self.nodes_for_class(dependency_class)
-                for dependency_class_node in d_class_nodes:
-                    node.add_dependency(dependency_class_node)
+            for dependency in node.entry.info.depends_on:
+                d_nodes = self.nodes_for_class_or_function(dependency)
+                for dependency_node in d_nodes:
+                    node.add_dependency(dependency_node)
 
     def node_for_entry(self, entry):
         """Finds the node attached to the given entry."""
@@ -275,9 +285,9 @@ class TestGraph:
                 return node
         raise RuntimeError("Could not find node for entry " + str(entry))
 
-    def nodes_for_class(self, cls):
+    def nodes_for_class_or_function(self, test_home):
         """Returns nodes attached to the given class."""
-        return (n for n in self.nodes if n.entry.cls is cls)
+        return (n for n in self.nodes if n.entry.home is test_home)
 
     def nodes_for_group(self, group_name):
         """Returns nodes attached to the given group."""
@@ -316,13 +326,13 @@ def register(**kwargs):
     default_registry.register(**kwargs)
 
 
-def test(cls=None, **kwargs):
+def test(home=None, **kwargs):
     """Put this on a test class to cause Proboscis to run it. """
-    if cls:
-        return default_registry.register(cls)
+    if home:
+        return default_registry.register(home)
     else:
-        def cb_method(cls2):
-            return default_registry.register(cls2, **kwargs)
+        def cb_method(home_2):
+            return default_registry.register(home_2, **kwargs)
         return cb_method
 
 
@@ -375,14 +385,14 @@ class FunctionTest(unittest.FunctionTestCase):
 
     def __init__(self, test_entry):
         _old_setup = None
-        if hasattr(test_entry.cls, 'setup'):  # Don't destroy nose-style setup
-            _old_setup = test_entry.cls.setup
+        if hasattr(test_entry.home, 'setup'):  # Don't destroy nose-style setup
+            _old_setup = test_entry.home.setup
         def cb_check(self=None):
             test_entry.check_dependencies()
             if _old_setup is not None:
                 _old_setup()
         self.__proboscis_entry__ = test_entry
-        unittest.FunctionTestCase.__init__(self, testFunc=test_entry.cls,
+        unittest.FunctionTestCase.__init__(self, testFunc=test_entry.home,
                                            setUp=cb_check)
 
 
@@ -399,28 +409,28 @@ class TestSuiteCreator(object):
         tests this test was dependent on failed or had errors.
 
         """
-        if test_entry.cls == None:
+        if test_entry.home == None:
             return []
-        if isinstance(test_entry.cls, type):
+        if isinstance(test_entry.home, type):
             return self.wrap_class(test_entry)
-        if isinstance(test_entry.cls, types.FunctionType):
+        if isinstance(test_entry.home, types.FunctionType):
             return self.wrap_function(test_entry)
 
     def wrap_class(self, test_entry):
         def cb_check(self=None):
             test_entry.check_dependencies()
-        testCaseClass = decorate_class(setUp_method=cb_check)(test_entry.cls)
+        testCaseClass = decorate_class(setUp_method=cb_check)(test_entry.home)
         setattr(testCaseClass, "__proboscis_entry__", test_entry)
         testCaseNames = self.loader.getTestCaseNames(testCaseClass)
         if not testCaseNames and hasattr(testCaseClass, 'runTest'):
             testCaseNames = ['runTest']
         suite = []
-        if issubclass(test_entry.cls, unittest.TestCase):
+        if issubclass(test_entry.home, unittest.TestCase):
             for name in testCaseNames:
                 suite.append(testCaseClass(name))
         else:
             raise RuntimeError("can't yet wrap test classes of type " +
-                               str(testEntry.cls) + ".")
+                               str(testEntry.home) + ".")
         return suite
 
     def wrap_function(self, test_entry):
@@ -494,7 +504,7 @@ class TestProgram(core.TestProgram):
         creator = TestSuiteCreator(self.__loader)
         suite = ContextSuiteFactory(config)([])
         for entry in entries:
-            if entry.info.enabled and entry.cls != None:
+            if entry.info.enabled and entry.home != None:
                 tests = creator.loadTestsFromTestEntry(entry)
                 for test in tests:
                     suite.addTest(test)        
@@ -523,8 +533,8 @@ class TestProgram(core.TestProgram):
         import pydoc
         print("   *  *  *  Test Plan  *  *  *")
         for entry in self.entries:
-            print(entry.cls)
-            doc = pydoc.getdoc(entry.cls)
+            print(entry.home)
+            doc = pydoc.getdoc(entry.home)
             if doc:
                 print(doc)
             for field in str(entry.info).split(', '):

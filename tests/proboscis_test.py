@@ -31,9 +31,9 @@ def assert_sort_order_is_correct(result):
     # TODO(tim.simpson): Clean this up, its kind of confusing.
     for i in range(len(result)):
         entry = result[i]
-        for d in entry.info.depends_on_classes:
+        for d in entry.info.depends_on:
             for j in range(i, len(result)):
-                if d is result[j].cls:
+                if d is result[j].home:
                     return "Invalid sort: " + str(entry) + " appears " + \
                            " before " + str(result[j]) + " but depends on it."
         for d in entry.info.depends_on_groups:
@@ -97,7 +97,7 @@ class TestTopologicalSort(unittest.TestCase):
         registry.register(N11)
         graph = TestGraph(registry)
         sorted_entries = graph.sort()
-        result = list(entry.cls for entry in sorted_entries)
+        result = list(entry.home for entry in sorted_entries)
         expected = [N11, N2, N3, N7]
         self.assertEqual(4, len(result))
         self.assertEqual(N11, result[0])
@@ -165,14 +165,14 @@ class TestModuleConversionToNodes(unittest.TestCase):
 
     def test_startup_must_be_first(self):
         from proboscis_example import StartUp
-        self.assertEquals(StartUp, self.registry.get_sorted_tests()[0].cls)
+        self.assertEquals(StartUp, self.registry.get_sorted_tests()[0].home)
 
     def test_filter_with_one(self):
         self.registry.filter_test_list(group_names=["init"])
         filtered = self.registry.get_sorted_tests()
         self.assertEqual(1, len(filtered))
         from proboscis_example import StartUp
-        self.assertEqual(StartUp, filtered[0].cls)
+        self.assertEqual(StartUp, filtered[0].home)
 
     def test_filter_should_keep_dependencies(self):
         self.registry.filter_test_list(group_names=["integration"])
@@ -181,7 +181,7 @@ class TestModuleConversionToNodes(unittest.TestCase):
         # is a dependency.
         self.assertEqual(4, len(filtered))
         from proboscis_example import StartUp
-        self.assertEqual(StartUp, filtered[0].cls)
+        self.assertEqual(StartUp, filtered[0].home)
         # All the other ones must be in the integration group
         for i in range(1, 4):
             self.assertEqual("integration", filtered[i].info.groups[0])
@@ -194,10 +194,10 @@ class TestModuleConversionToNodes(unittest.TestCase):
         # which depends on init
         self.assertEquals(3, len(filtered))
         from proboscis_example import StartUp
-        self.assertEqual(StartUp, filtered[0].cls)
+        self.assertEqual(StartUp, filtered[0].home)
         from proboscis_example import RandomTestZero
-        self.assertEqual(RandomTestZero, filtered[1].cls)
-        self.assertEqual(RandomTestOne, filtered[2].cls)
+        self.assertEqual(RandomTestZero, filtered[1].home)
+        self.assertEqual(RandomTestOne, filtered[2].home)
 
 
 @time_out(2)
