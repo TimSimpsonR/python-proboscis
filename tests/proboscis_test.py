@@ -50,15 +50,15 @@ class N2:
     pass
 class N3:
     pass
-class N5:
+def N5():
     pass
-class N7:
+def N7():
     pass
 class N8:
     pass
 class N9:
     pass
-class N10:
+def N10():
     pass
 class N11:
     pass

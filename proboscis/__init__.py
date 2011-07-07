@@ -110,7 +110,7 @@ class TestCaseInfo:
                  groups=None,
                  depends_on_classes=None,
                  depends_on_groups=None,
-                 ignore=False,
+                 enabled=True,
                  never_skip=False):
         groups = groups or []
         depends_on_classes = depends_on_classes or []
@@ -118,18 +118,18 @@ class TestCaseInfo:
         self.groups = groups
         self.depends_on_classes = depends_on_classes
         self.depends_on_groups = depends_on_groups
-        self.ignore = ignore
+        self.enabled = enabled
         self.never_skip = never_skip
 
     def __repr__(self):
         return "TestCaseInfo(groups=" + str(self.groups) + \
                ", depends_on_classes=" + str(self.depends_on_classes) + \
                ", depends_on_groups=" + str(self.depends_on_groups) + \
-               ", ignore=" + str(self.ignore) + ")"
+               ", enabled=" + str(self.enabled) + ")"
 
     def __str__(self):
         return "groups = " + str(self.groups) + \
-               ", ignore = " + str(self.ignore) + \
+               ", enabled = " + str(self.enabled) + \
                ", depends_on_groups = " + str(self.depends_on_groups) + \
                ", depends_on_classes = " + str(self.depends_on_classes)
 
@@ -369,34 +369,62 @@ def test_runner_cls(wrapped_cls, cls_name):
     return type(cls_name, (wrapped_cls,), new_dict)
 
 
+
+class FunctionTest(unittest.FunctionTestCase):
+    """Wraps a single function as a test runnable by unittest / nose."""
+
+    def __init__(self, test_entry):
+        _old_setup = None
+        if hasattr(test_entry.cls, 'setup'):  # Don't destroy nose-style setup
+            _old_setup = test_entry.cls.setup
+        def cb_check(self=None):
+            test_entry.check_dependencies()
+            if _old_setup is not None:
+                _old_setup()
+        self.__proboscis_entry__ = test_entry
+        unittest.FunctionTestCase.__init__(self, testFunc=test_entry.cls,
+                                           setUp=cb_check)
+
+
 class TestSuiteCreator(object):
     """Turns Proboscis test entries into elements to be run by unittest."""
 
     def __init__(self, loader):
         self.loader = loader
 
-    def loadTestsFromTestEntry(self, testEntry):
+    def loadTestsFromTestEntry(self, test_entry):
         """Wraps a test class in magic so it will skip on dependency failures.
 
         Decorates the testEntry class's setUp method to raise SkipTest if
         tests this test was dependent on failed or had errors.
 
         """
-        def cb_check(self):
-            testEntry.check_dependencies()
-        testCaseClass = decorate_class(setUp_method=cb_check)(testEntry.cls)
-        setattr(testCaseClass, "__proboscis_entry__", testEntry)
+        if test_entry.cls == None:
+            return []
+        if isinstance(test_entry.cls, type):
+            return self.wrap_class(test_entry)
+        if isinstance(test_entry.cls, types.FunctionType):
+            return self.wrap_function(test_entry)
+
+    def wrap_class(self, test_entry):
+        def cb_check(self=None):
+            test_entry.check_dependencies()
+        testCaseClass = decorate_class(setUp_method=cb_check)(test_entry.cls)
+        setattr(testCaseClass, "__proboscis_entry__", test_entry)
         testCaseNames = self.loader.getTestCaseNames(testCaseClass)
         if not testCaseNames and hasattr(testCaseClass, 'runTest'):
             testCaseNames = ['runTest']
         suite = []
-        if issubclass(testEntry.cls, unittest.TestCase):
+        if issubclass(test_entry.cls, unittest.TestCase):
             for name in testCaseNames:
                 suite.append(testCaseClass(name))
         else:
             raise RuntimeError("can't yet wrap test classes of type " +
                                str(testEntry.cls) + ".")
         return suite
+
+    def wrap_function(self, test_entry):
+        return [FunctionTest(test_entry)]
 
 
 class TestProgram(core.TestProgram):
@@ -445,7 +473,8 @@ class TestProgram(core.TestProgram):
             self.show_plan()
             return
         else:
-            self.__suite = self.create_test_suite_from_entries(self.entries)
+            self.__suite = self.create_test_suite_from_entries(config,
+                                                               self.entries)            
             def run():
                 core.TestProgram.__init__(
                     self,
@@ -460,13 +489,15 @@ class TestProgram(core.TestProgram):
                 )
             self.call_nose = run
 
-    def create_test_suite_from_entries(self, entries):
+    def create_test_suite_from_entries(self, config, entries):
+        from nose.suite import ContextSuiteFactory
         creator = TestSuiteCreator(self.__loader)
-        suite = []
+        suite = ContextSuiteFactory(config)([])
         for entry in entries:
-            if not entry.info.ignore and entry.cls != None:
+            if entry.info.enabled and entry.cls != None:
                 tests = creator.loadTestsFromTestEntry(entry)
-                suite += tests
+                for test in tests:
+                    suite.addTest(test)        
         return suite
 
     def extract_groups_from_argv(self, argv, groups):
