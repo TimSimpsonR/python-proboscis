@@ -34,19 +34,6 @@ from nose.plugins.skip import SkipTest
 from proboscis.decorators import decorate_class
 
 
-def adapt_test_home(home):
-    """If home isn't a class, its wrapped in one and returned."""
-    if not home:
-        return home
-    if isinstance(home, (types.ClassType, types.TypeType)):
-        return home
-    if isinstance(home, types.FunctionType):
-        new_dict = unittest.TestCase.__dict__.copy()
-        new_dict["test_" + home.__name__] = home
-        return type(home.__name__ + "_", (unittest.TestCase, ), new_dict)
-    else:
-        raise TypeError("Cannot register as test " + home)
-
 class TestRegistry(object):
     """Stores test information."""
     def __init__(self):
@@ -92,7 +79,6 @@ class TestRegistry(object):
 
     def register(self, cls=None, **kwargs):
         """Registers a test entry."""
-        cls = adapt_test_home(cls)
         if self.__has_been_sorted:
             raise RuntimeError("New entries not allowed after call to sort.")
         info = TestCaseInfo(**kwargs)
@@ -348,12 +334,10 @@ class TestResultListener():
 
     def addError(self, test, err):
         self.onError(test)
-        result.TextTestResult.addError(self, test, err)
         self.chain_to_cls.addError(self, test, err)
 
     def addFailure(self, test, err):
         self.onError(test)
-        result.TextTestResult.addFailure(self, test, err)
         self.chain_to_cls.addFailure(self, test, err)
 
     def onError(self, test):
@@ -385,17 +369,11 @@ def test_runner_cls(wrapped_cls, cls_name):
     return type(cls_name, (wrapped_cls,), new_dict)
 
 
-class TestLoader(object):
-    """Custom test loader for Proboscis.
+class TestSuiteCreator(object):
+    """Turns Proboscis test entries into elements to be run by unittest."""
 
-    Differs from the default unittest loader in that methods need only be
-    marked with the test decorator and any test whose dependencies have failed
-    throw SkipTest instead of running.
-
-    """
-
-    def __init__(self, wrapped_loader):
-        self.wrapped_loader = wrapped_loader
+    def __init__(self, loader):
+        self.loader = loader
 
     def loadTestsFromTestEntry(self, testEntry):
         """Wraps a test class in magic so it will skip on dependency failures.
@@ -408,26 +386,17 @@ class TestLoader(object):
             testEntry.check_dependencies()
         testCaseClass = decorate_class(setUp_method=cb_check)(testEntry.cls)
         setattr(testCaseClass, "__proboscis_entry__", testEntry)
-        testCaseNames = self.getTestCaseNames(testCaseClass)
+        testCaseNames = self.loader.getTestCaseNames(testCaseClass)
         if not testCaseNames and hasattr(testCaseClass, 'runTest'):
             testCaseNames = ['runTest']
-        return self.wrapped_loader.suiteClass(map(testCaseClass,
-                                                  testCaseNames))
-
-    def loadTestsFromTestCase(self, testCaseClass):
-        return self.wrapped_loader.loadTestsFromTestCase(testCaseClass)
-
-    def loadTestsFromModule(self, module):
-        return self.wrapped_loader.loadTestsFromModule(module)
-
-    def loadTestsFromName(self, name, module=None):
-        return self.wrapped_loader.loadTestsFromName(name, module)
-
-    def loadTestsFromNames(self, names, module=None):
-        return self.wrapped_loader.loadTestsFromNames(names, module)
-
-    def getTestCaseNames(self, testCaseClass):
-        return self.wrapped_loader.getTestCaseNames(testCaseClass)
+        suite = []
+        if issubclass(testEntry.cls, unittest.TestCase):
+            for name in testCaseNames:
+                suite.append(testCaseClass(name))
+        else:
+            raise RuntimeError("can't yet wrap test classes of type " +
+                               str(testEntry.cls) + ".")
+        return suite
 
 
 class TestProgram(core.TestProgram):
@@ -455,7 +424,7 @@ class TestProgram(core.TestProgram):
             raise ValueError("'suite' is not a valid argument, as Proboscis " \
                              "creates the suite.")
 
-        self.__loader = testLoader or TestLoader(unittest.TestLoader())
+        self.__loader = testLoader or unittest.TestLoader()
 
         if env is None:
             env = os.environ
@@ -476,10 +445,7 @@ class TestProgram(core.TestProgram):
             self.show_plan()
             return
         else:
-            self.__suite = unittest.TestSuite()
-            for entry in self.entries:
-                if not entry.info.ignore and entry.cls != None:
-                    self.add_test_case(entry)
+            self.__suite = self.create_test_suite_from_entries(self.entries)
             def run():
                 core.TestProgram.__init__(
                     self,
@@ -494,14 +460,14 @@ class TestProgram(core.TestProgram):
                 )
             self.call_nose = run
 
-
-    def add_test_case(self, entry):
-        """Creates and adds a standard Nose test case from a TestEntry."""
-        if isinstance(self.__loader, TestLoader):
-            case = self.__loader.loadTestsFromTestEntry(entry)
-        else:
-            case = self.__loader.loadTestsFromTestCase(entry.cls)
-        self.__suite.addTest(case)
+    def create_test_suite_from_entries(self, entries):
+        creator = TestSuiteCreator(self.__loader)
+        suite = []
+        for entry in entries:
+            if not entry.info.ignore and entry.cls != None:
+                tests = creator.loadTestsFromTestEntry(entry)
+                suite += tests
+        return suite
 
     def extract_groups_from_argv(self, argv, groups):
         """Find the group argument if it exists and extract it.
