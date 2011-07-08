@@ -431,7 +431,7 @@ class TestSuiteCreator(object):
                 suite.append(test_instance)
         else:
             raise RuntimeError("can't yet wrap test classes of type " +
-                               str(testEntry.home) + ".")
+                               str(test_entry.home) + ".")
         return suite
 
     def wrap_function(self, test_entry):
