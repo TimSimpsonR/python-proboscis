@@ -352,8 +352,8 @@ class TestResultListener():
 
     def onError(self, test):
         """Notify a test entry and its dependents of failure."""
-        if hasattr(test.__class__, "__proboscis_entry__"):
-            entry = test.__class__.__proboscis_entry__
+        if hasattr(test.test, "__proboscis_entry__"):
+            entry = test.test.__proboscis_entry__
             entry.fail_test()
 
 
@@ -420,14 +420,15 @@ class TestSuiteCreator(object):
         def cb_check(self=None):
             test_entry.check_dependencies()
         testCaseClass = decorate_class(setUp_method=cb_check)(test_entry.home)
-        setattr(testCaseClass, "__proboscis_entry__", test_entry)
         testCaseNames = self.loader.getTestCaseNames(testCaseClass)
         if not testCaseNames and hasattr(testCaseClass, 'runTest'):
             testCaseNames = ['runTest']
         suite = []
         if issubclass(test_entry.home, unittest.TestCase):
             for name in testCaseNames:
-                suite.append(testCaseClass(name))
+                test_instance = testCaseClass(name)
+                setattr(test_instance, "__proboscis_entry__", test_entry)
+                suite.append(test_instance)
         else:
             raise RuntimeError("can't yet wrap test classes of type " +
                                str(testEntry.home) + ".")
@@ -469,7 +470,7 @@ class TestProgram(core.TestProgram):
         if config is None:
             config = self.makeConfig(env, plugins)
 
-        if testRunner == None:
+        if testRunner is None:
             runner_cls = test_runner_cls(core.TextTestRunner,
                                          "ProboscisTestRunner")
             testRunner = runner_cls(config.stream,
