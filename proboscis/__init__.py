@@ -34,6 +34,11 @@ from nose.plugins.skip import SkipTest
 from proboscis.decorators import decorate_class
 
 
+# This is here so Proboscis own test harness can change it while still calling
+# TestProgram normally. Its how the examples are tested.
+_override_default_stream=None
+
+
 class TestRegistry(object):
     """Stores test information."""
     def __init__(self):
@@ -454,6 +459,7 @@ class TestProgram(core.TestProgram):
                  plugins=None,
                  env=None,
                  testRunner=None,
+                 stream=None,
                  argv=sys.argv,
                  *args, **kwargs):
         classes = classes or []
@@ -465,15 +471,22 @@ class TestProgram(core.TestProgram):
 
         self.__loader = testLoader or unittest.TestLoader()
 
+        if _override_default_stream:
+            stream = _override_default_stream
+
         if env is None:
             env = os.environ
         if config is None:
             config = self.makeConfig(env, plugins)
+            if not stream:
+                stream = config.stream
 
+        stream = stream or sys.stdout
+        
         if testRunner is None:
             runner_cls = test_runner_cls(core.TextTestRunner,
                                          "ProboscisTestRunner")
-            testRunner = runner_cls(config.stream,
+            testRunner = runner_cls(stream,
                                     verbosity=3,  # config.verbosity,
                                     config=config)
         registry.sort()

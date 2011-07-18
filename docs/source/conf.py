@@ -194,26 +194,17 @@ latex_documents = [
 #latex_use_modindex = True
 
 
-def make_dirs(dir):
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-
-
-def py2rst(file_name):
-    pyfile = os.path.join("example", file_name)
-    if not os.path.exists(pyfile):
-        raise ValueError("File %s not found." % pyfile)
-    rstfile = os.path.join("../build/py2rst", file_name)
-
-    make_dirs(os.path.dirname(rstfile))
-
-    with open(rstfile, 'w') as output:
-        output.write(".. code-block:: python\n\n")
-        output.writelines(("    " + line for line in open(pyfile, 'r')))
-
 if not os.path.exists("../build"):
     raise ValueError("Expected to be called from docs source.")
 
-py2rst("runtests.py")
-py2rst("tests/service_tests.py")
-py2rst("tests/util_test.py")
+# Append the root to the path, so we can run the tests before we generate docs
+# to avoid lying.
+test_root_path=os.path.join("..", "..")
+sys.path.append(test_root_path)
+import run_tests
+run_tests.run_all(root=test_root_path)
+
+if not os.path.exists(os.path.join("..", "build", "examples", "example1",
+                                   "output", "output.txt")):
+    raise RuntimeError("The tests ran unsuccessfully, skipping docs.")
+

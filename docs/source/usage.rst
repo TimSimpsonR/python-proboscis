@@ -12,7 +12,7 @@ require the test decorator.
 
 Here's an example:
 
-.. include:: ../build/py2rst/tests/util_test.py
+.. include:: ../build/examples/example1/source/tests/unit_test.py
 
 Proboscis is more useful for higher level tests which may have dependencies on
 each other or need to run in a guaranteed order.
@@ -30,7 +30,7 @@ the real problem.
 
 For example:
 
-.. include:: ../build/py2rst/tests/service_tests.py
+.. include:: ../build/examples/example1/source/tests/service_tests.py
 
 This code models an end user hitting a web service to change his profile
 pictures.
@@ -70,7 +70,7 @@ to specify additional bits of configuration or organization.
 
 Here's an example:
 
-.. include:: ../build/py2rst/runtests.py
+.. include:: ../build/examples/example1/source/run_tests.py
 
 The constructor of the class proboscis.TestProgram sorts and filters the test
 suite (using the command line arguments as described below) on creation.  Be
