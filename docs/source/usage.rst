@@ -4,15 +4,27 @@ Usage
 Writing Tests
 -------------
 
-Proboscis tests are unittest.TestCase classes decorated with
-proboscis.test.
+Proboscis runs imported test functions or classes decorated with the
+proboscis.test decorator.  Decorated classes extending unittest.TestCase run
+exactly like they do in Nose / unittest.
 
-In fact, true unit tests are indistinguishable from Nose tests except that they
-require the test decorator.
+This means traditional Python unit test classes can run as-is in Proboscis
+provided they are decorated.
 
-Here's an example:
+For example:
 
-.. include:: ../build/examples/example1/source/tests/unit_test.py
+.. include:: ../build/examples/unit/source/tests/unit.py
+
+Proboscis exists to provide a foundation for high-level testing in custom
+test harnesses so unlike Nose all tests modules must be imported directly in
+code, and using it requires you write a start-up script like the following:
+
+.. include:: ../build/examples/unit/source/run_tests.py
+
+Assuming this is named something like "run_test.py" you can run it like so:
+
+.. include:: ../build/examples/unit/output/output.rst
+
 
 Proboscis is more useful for higher level tests which may have dependencies on
 each other or need to run in a guaranteed order.

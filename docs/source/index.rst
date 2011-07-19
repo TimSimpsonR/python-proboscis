@@ -11,7 +11,7 @@
       License for the specific language governing permissions and limitations
       under the License.
 
-.. include:: ../../README
+.. include:: ../../README.rst
    :end-line: 21
 
 .. toctree::
@@ -20,7 +20,6 @@
    usage
    download
    pydocs
-
 
 Indices and tables
 ==================

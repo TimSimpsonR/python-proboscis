@@ -1,3 +1,4 @@
+=========
 Proboscis
 =========
 
@@ -16,8 +17,8 @@ tests that have failed are automatically marked as skipped.
 
 Much of this functionality was "inspired" by TestNG.  If you're coming from
 that framework, the main features Proboscis currently offers are dependent test
-ordering (currently limited to the class level) and the ability to arrange your
-tests into groups independent of the structure of their modules or packages.
+ordering and the ability to arrange tests into groups independent of the
+structure of their modules or packages.
 
 With Proboscis it's possible to write tests which depend on a web service
 (or some other dependency you'd like to only initialize once) like this:

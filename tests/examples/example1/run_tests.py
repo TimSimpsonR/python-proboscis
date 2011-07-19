@@ -2,9 +2,6 @@ from proboscis import register
 from proboscis import TestProgram
 
 def run_tests():
-    # Import all modules which have been decorated with @test.
-#    for d in dir(tests):
-#        print(str(d) + "=" + str(getattr(tests, d)) + "\n")
     from tests import unit_test
     from tests import service_tests
 

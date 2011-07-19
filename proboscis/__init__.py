@@ -325,7 +325,6 @@ class TestGraph:
 
 default_registry = TestRegistry()
 
-
 def register(**kwargs):
     """Registers a test in proboscis's default registry."""
     default_registry.register(**kwargs)
