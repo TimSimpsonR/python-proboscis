@@ -23,6 +23,7 @@ run as tests.  Much of this functionality was "inspired" by TestNG.
 """
 
 import os
+import pydoc
 import sys
 import types
 import unittest
@@ -38,14 +39,13 @@ from proboscis.decorators import decorate_class
 # TestProgram normally. Its how the examples are tested.
 _override_default_stream=None
 
+_default_argv=sys.argv
+
 
 class TestRegistry(object):
     """Stores test information."""
     def __init__(self):
-        self.tests = []
-        self.groups = {}
-        self.classes = {}
-        self.__has_been_sorted = False
+        self.reset()
 
     def ensure_group_exists(self, group_name):
         """Adds the group if it does not exist."""
@@ -106,6 +106,13 @@ class TestRegistry(object):
             self.classes[cls].append(entry)
         return cls
 
+    def reset(self):
+        """Wipes the registry."""
+        self.tests = []
+        self.groups = {}
+        self.classes = {}
+        self.__has_been_sorted = False
+
     def sort(self):
         """Sorts all registered test entries."""
         if self.__has_been_sorted:
@@ -123,7 +130,7 @@ class TestCaseInfo:
                  depends_on_classes=None,
                  depends_on_groups=None,
                  enabled=True,
-                 never_skip=False):
+                 always_run=False):
         groups = groups or []
         depends_on = depends_on or []
         depends_on_classes = depends_on_classes or []
@@ -134,7 +141,7 @@ class TestCaseInfo:
         self.depends_on = depends_on
         self.depends_on_groups = depends_on_groups
         self.enabled = enabled
-        self.never_skip = never_skip
+        self.always_run = always_run
 
     def __repr__(self):
         return "TestCaseInfo(groups=" + str(self.groups) + \
@@ -143,7 +150,7 @@ class TestCaseInfo:
                ", enabled=" + str(self.enabled) + ")"
 
     def __str__(self):
-        return "groups = " + str(self.groups) + \
+        return "groups = [" + ",".join(self.groups) + ']' \
                ", enabled = " + str(self.enabled) + \
                ", depends_on_groups = " + str(self.depends_on_groups) + \
                ", depends_on = " + str(self.depends_on)
@@ -192,7 +199,7 @@ class TestEntry(object):
     def check_dependencies(self):
         """If a dependency has failed, SkipTest is raised."""
         if self.dependency_failure != None and self.dependency_failure != self\
-           and not self.info.never_skip:
+           and not self.info.always_run:
             raise SkipTest("Failure in " + str(self.dependency_failure.home))
 
     def contains(self, group_names, classes):
@@ -214,6 +221,14 @@ class TestEntry(object):
             for dependent in self.dependents:
                 dependent.fail_test(dependency_failure=dependency_failure)
 
+    def write_doc(self, file):
+        file.write(str(self.home) + "\n")
+        doc = pydoc.getdoc(self.home)
+        if doc:
+            file.write(doc + "\n")
+        for field in str(self.info).split(', '):
+            file.write("\t" + field + "\n")
+        
     def __repr__(self):
         return "TestEntry(" + repr(self.home) + ", " + \
                repr(self.info) + ", " + object.__repr__(self) + ")"
@@ -413,12 +428,13 @@ class TestSuiteCreator(object):
         tests this test was dependent on failed or had errors.
 
         """
-        if test_entry.home == None:
+        if test_entry.home is None:
             return []
         if isinstance(test_entry.home, type):
             return self.wrap_class(test_entry)
         if isinstance(test_entry.home, types.FunctionType):
             return self.wrap_function(test_entry)
+        raise RuntimeError("Unknown test type:" + str(type(test_entry.home)))
 
     def wrap_class(self, test_entry):
         def cb_check(self=None):
@@ -459,10 +475,11 @@ class TestProgram(core.TestProgram):
                  env=None,
                  testRunner=None,
                  stream=None,
-                 argv=sys.argv,
+                 argv=None,
                  *args, **kwargs):
         classes = classes or []
         groups = groups or []
+        argv = argv or sys.argv #_default_argv
         argv = self.extract_groups_from_argv(argv, groups)
         if "suite" in kwargs:
             raise ValueError("'suite' is not a valid argument, as Proboscis " \
@@ -493,8 +510,7 @@ class TestProgram(core.TestProgram):
             registry.filter_test_list(group_names=groups)
         self.entries = registry.get_sorted_tests()
         if "--show-plan" in argv:
-            self.show_plan()
-            return
+            self.__run = self.show_plan
         else:
             self.__suite = self.create_test_suite_from_entries(config,
                                                                self.entries)            
@@ -510,7 +526,7 @@ class TestProgram(core.TestProgram):
                     argv=argv,
                     *args, **kwargs
                 )
-            self.call_nose = run
+            self.__run = run
 
     def create_test_suite_from_entries(self, config, entries):
         from nose.suite import ContextSuiteFactory
@@ -539,19 +555,13 @@ class TestProgram(core.TestProgram):
         return new_argv
 
     def run_and_exit(self):
-        self.call_nose()
+        self.__run()
 
     def show_plan(self):
         """Prints information on test entries and the order they will run."""
-        import pydoc
         print("   *  *  *  Test Plan  *  *  *")
         for entry in self.entries:
-            print(entry.home)
-            doc = pydoc.getdoc(entry.home)
-            if doc:
-                print(doc)
-            for field in str(entry.info).split(', '):
-                print("\t" + field)
+            entry.write_doc(sys.stdout)
     
     @property
     def test_suite(self):

@@ -46,7 +46,7 @@ module as a first class test itself:
 
     @test(groups=["service.shutdown"], \
           depends_on_groups=["service.initialization", "service.tests"], \
-          never_skip=True)
+          always_run=True)
     class StopService(unittest.TestCase):
 
         def test_stop(self):

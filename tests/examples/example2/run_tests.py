@@ -5,7 +5,6 @@ def run_tests():
     from tests import service_tests
 
     # Now create some groups of groups.
-    register(groups=["fast"], depends_on_groups=["unit"])
     register(groups=["integration"],
              depends_on_groups=["service.initialize",
                                 "service.tests",

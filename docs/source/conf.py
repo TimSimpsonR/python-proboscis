@@ -205,6 +205,6 @@ import run_tests
 run_tests.run_all(root=test_root_path)
 
 if not os.path.exists(os.path.join("..", "build", "examples", "example1",
-                                   "output", "output.txt")):
-    raise RuntimeError("The tests ran unsuccessfully, skipping docs.")
+                                   "output", "output1.txt")):
+    raise ValueError("Please run Proboscis's tests before creating docs.")
 

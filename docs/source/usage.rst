@@ -1,8 +1,8 @@
 Usage
 =================
 
-Writing Tests
--------------
+Writing Unit Tests
+------------------
 
 Proboscis runs imported test functions or classes decorated with the
 proboscis.test decorator.  Decorated classes extending unittest.TestCase run
@@ -14,22 +14,53 @@ provided they are decorated.
 For example:
 
 .. include:: ../build/examples/unit/source/tests/unit.py
+   :end-line: 20
 
-Proboscis exists to provide a foundation for high-level testing in custom
-test harnesses so unlike Nose all tests modules must be imported directly in
-code, and using it requires you write a start-up script like the following:
+You can also attach the proboscis.test decorator to functions to run them
+by themselves:
+
+.. include:: ../build/examples/unit/source/tests/unit.py
+   :start-line: 20
+
+Unlike Nose Proboscis requires all tests modules must be imported directly in
+code, so using it requires you write a start-up script like the following:
 
 .. include:: ../build/examples/unit/source/run_tests.py
 
 Assuming this is named something like "run_test.py" you can run it like so:
 
-.. include:: ../build/examples/unit/output/output.rst
+.. include:: ../build/examples/unit/output/output1.rst
 
+
+TestProgram.run_and_exit() expects to be used in scripts like this and takes
+command line arguments into account (Note: it's called "run_and_exit()"
+because to run the tests it calls Nose which then calls unittest, which calls
+sys.exit() on completion and forces the program to exit).
+
+Normally, all tests are run, but we can use the "--group" command line
+parameter to run only tests in a certain groups run instead:
+
+.. include:: ../build/examples/unit/output/output2.rst
+
+You can also use the "--show-plan" argument to get a preview of how Proboscis
+will run the tests:
+
+.. include:: ../build/examples/unit/output/output3.rst
+
+Unused arguments get passed along to Nose. However, Proboscis is by nature
+invasive and intentionally and unintentionally breaks many Nose features so
+most of them won't work well or at all.
+
+It is worth noting that the ability to organize tests into groups is present
+in Nose via the "attr" decorator.
+
+Writing Higher Level Tests
+--------------------------
 
 Proboscis is more useful for higher level tests which may have dependencies on
 each other or need to run in a guaranteed order.
 
-Nose can order tests based on their placement and name but the effect is
+Nose can order tests lexically but the effect is
 difficult to maintain, especially when working with multiple modules.
 Additionally, if one test performs some sort of initialization to produce a
 state required by other tests and fails, the dependent tests run despite
@@ -40,25 +71,36 @@ In Proboscis, if one tests depends on another which fails, the
 dependent test raises SkipTest automatically, making it easier to track down
 the real problem.
 
-For example:
+For example, lets say we're testing a web service that allows a user to store
+and change their profile pictures which come from a database.
+
+To test this without mocking anything, we need to set up a local
+database instance and  start the actual web service.  However, if this code
+is tricky enough it may be a test in its own right.
+
+In Proboscis we can actually make the initialization code a test and put it
+in a group marked "service.initialization." The tests which depend on the
+initialization procedure which we actually care about are put in a group called
+"service.tests". Finally, we can make a third group responsible for shutting
+down the web service and database and call it "service.shutdown." If this
+group is dependent on the "service.tests" group it won't run until after all
+of the other tests.
+
+Here's what the code looks like:
 
 .. include:: ../build/examples/example1/source/tests/service_tests.py
 
-This code models an end user hitting a web service to change his profile
-pictures.
+.. include:: ../build/examples/example1/output/output0.rst
 
-To do this without mocking anything, it has to set up a local
-database instance and  start the actual web service.  This is done in the
-group marked "service.initialization." Because the "service.tests" group
-depends on it, those tests can assume that the services are up.
-
-Additionally, if the initialization phase fails somehow it will
+If the initialization phase fails somehow it will
 be represented like any other test, and all tests in the integration.tests
-group will be marked as "skip" instead of fail.
+group will be marked as "skip" instead of fail:
+
+.. include:: ../build/examples/example1/output/output1.rst
 
 When the tests are finished the group "integration.shutdown" runs.  The two
-test classes in this group are marked as  "never_skip", which prevents them
-from not running if anything in the "integration.tests" group fails but still
+test classes in this group are marked as  "always_run", which prevents them
+from not running if anything in the "service.tests" group fails but still
 causes them to run afterwards.
 
 .. include:: ../../README
@@ -69,52 +111,26 @@ Of course, whether or not its worth it to start the real database and the web
 service or if the tests instead should use mocks depends on the particulars of
 the application and the religion of the test author.
 
-Running Proboscis
+Its also possible to declare that a test declares on another class or function
+using the "depends_on" argument.  So the file above could be written like so:
+
+.. include:: ../build/examples/example2/source/tests/service_tests.py
+
+
+Additional Tricks
 -----------------
 
-Proboscis doesn’t have a standard script and can't automatically load modules
-in a directory, so you have to import them programmatically manually before passing control to Proboscis.
-
-Proboscis requires test modules to be imported manually and any project
-using it will need to write its own main test script.  Don't worry though
-because this is pretty easy.  Such a script is also normally a good place
-to specify additional bits of configuration or organization.
-
-Here's an example:
+Its possible to create empty test entries that link groups together using the
+proboscis.register function without a class or function.  A good
+place to do (as well as store other bits of configuration) is in the start up
+script you write for Proboscis.  Here's an example:
 
 .. include:: ../build/examples/example1/source/run_tests.py
 
-The constructor of the class proboscis.TestProgram sorts and filters the test
-suite (using the command line arguments as described below) on creation.  Be
-warned that it should only be called once- calling it multiple times will lead
-to strange behavior.
-
-The method "run_and_exit" passes control to nose.core.TestProgram
-(which passes control to the unittest module) and exits the program.
-By default, proboscis.TestProgram reads arguments from sys.argv.
-Assuming this script was named runtests.py, you'd could run all the tests
-using this command:
-
-.. code-block:: bash
-
-    python runtests.py
-
-...run just the unit tests with this one:
-
-.. code-block:: bash
-
-    python runtests.py --group=unit
-
-...or run all the slow tests:
+Here the groups "fast", "integration", and "slow" are created as simple
+dependencies on other groups.  This makes it possible to, for example, run
+all "slow" tests with the following command:
 
 .. code-block:: bash
 
     python runtests.py --group=slow
-
-You can see how Proboscis will order the tests using the --show-plan option.
-
-.. code-block:: bash
-
-    python runtests.py --groups=slow --show-plan
-
-
