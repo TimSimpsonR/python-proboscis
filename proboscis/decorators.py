@@ -23,7 +23,8 @@ def expect_exception(exception_type):
         def new_method(*kargs, **kwargs):
             try:
                 method(*kargs, **kwargs)
-                self.fail("Expected exception of type " + str(exception_type))
+                raise AssertionError("Expected exception of type " +
+                                     str(exception_type))
             except exception_type:
                 pass  # This is what we want
         return new_method

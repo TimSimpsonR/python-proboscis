@@ -31,14 +31,14 @@ class RandomTestZero(unittest.TestCase):
 
 
 @test(depends_on_groups=["integration"])
-class Destroy(object):
+class Destroy(unittest.TestCase):
 
     def test_destroy(self):
         assert _data_exists
 
 @test(groups=["integration"], depends_on_groups=["init"],
       depends_on_classes=[RandomTestZero])
-class RandomTestOne(object):
+class RandomTestOne(unittest.TestCase):
 
     def test_something(self):
         assert _data_exists
@@ -52,7 +52,7 @@ class RandomTestTwo(unittest.TestCase):
         _tests_run[2] = True
 
 @test(groups=["init"])
-class StartUp(object):
+class StartUp(unittest.TestCase):
 
     def test_connect_to_db(self):
         self.assertEquals(10, 10)
