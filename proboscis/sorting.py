@@ -86,7 +86,14 @@ class TestGraph:
 
     def nodes_for_class_or_function(self, test_home):
         """Returns nodes attached to the given class."""
-        return (n for n in self.nodes if n.case.entry.home is test_home)
+        search_homes = [test_home]
+        if hasattr(test_home, '_proboscis_entry_'):
+            if hasattr(test_home._proboscis_entry_, 'children'):
+                children = test_home._proboscis_entry_.children
+                search_homes += [child.home for child in children]
+        search_set = set(search_homes)
+        return (n for n in self.nodes \
+                if search_set.intersection(n.case.entry.homes))
 
     def nodes_for_group(self, group_name):
         """Returns nodes attached to the given group."""

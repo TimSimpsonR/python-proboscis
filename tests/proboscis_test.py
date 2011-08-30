@@ -45,6 +45,7 @@ def assert_sort_order_is_correct(result):
                                   "appears before " + str(result[j]) + \
                                   " which is itself in group " + g + "."
 
+
 # Fake classes we use as Nodes
 class N2(unittest.TestCase):
     pass
@@ -62,6 +63,17 @@ def N10():
     pass
 class N11(unittest.TestCase):
     pass
+
+
+def remove_entry(home):
+    """Proboscis fails if a class or function is registry twice.
+    This prevents that."""
+    if hasattr(home, '_proboscis_entry_'):
+        delattr(home, '_proboscis_entry_')
+
+def remove_entries():
+    for item in [N2, N3, N5, N7, N8, N9, N10, N11]:
+        remove_entry(item)
 
 class TestValidation(unittest.TestCase):
 
@@ -87,15 +99,20 @@ class TestValidation(unittest.TestCase):
 
 class TestTopologicalSort(unittest.TestCase):
 
+    def setUp(self):
+       remove_entries()
+
     def test_simple_sort(self):
         from proboscis.case import TestPlan
+        from proboscis.sorting import TestGraph
         from proboscis import TestRegistry
         registry = TestRegistry()
         registry.register(N2, groups=["blah"], depends_on_classes=[N11])
         registry.register(N3, depends_on_classes=[N11, N2])
         registry.register_func(N7, depends_on_groups=["blah"])
         registry.register(N11)
-        graph = TestPlan._create_graph(registry.groups, registry.tests)
+        cases = TestPlan.create_cases(registry.tests, [])
+        graph = TestGraph(registry.groups, registry.tests, cases)
         sorted_entries = graph.sort()
         result = list(case.entry.home for case in sorted_entries)
         expected = [N11, N2, N3, N7]
@@ -107,6 +124,7 @@ class TestTopologicalSort(unittest.TestCase):
 
     def test_complex_sort(self):
         from proboscis.case import TestPlan
+        from proboscis.sorting import TestGraph
         from proboscis import TestRegistry
 
         registry = TestRegistry()
@@ -118,7 +136,8 @@ class TestTopologicalSort(unittest.TestCase):
         registry.register(N9, depends_on_classes=[N8, N11])
         registry.register_func(N10, depends_on_classes=[N3, N11])
         registry.register(N11, depends_on_classes=[N5, N7])
-        graph = TestPlan._create_graph(registry.groups, registry.tests)
+        cases = TestPlan.create_cases(registry.tests, [])
+        graph = TestGraph(registry.groups, registry.tests, cases)
         result = graph.sort()
         self.assertEqual(8, len(result))
         msg = assert_sort_order_is_correct(result)
@@ -127,6 +146,7 @@ class TestTopologicalSort(unittest.TestCase):
 
     def test_do_not_allow_sneaky_cycle(self):
         from proboscis.case import TestPlan
+        from proboscis.sorting import TestGraph
         from proboscis import TestRegistry
 
         registry = TestRegistry()
@@ -139,7 +159,8 @@ class TestTopologicalSort(unittest.TestCase):
         registry.register_func(N10, depends_on_classes=[N3, N11])
         registry.register(N11, groups=["something"],
                           depends_on_classes=[N5, N7])
-        graph = TestPlan._create_graph(registry.groups, registry.tests)
+        cases = TestPlan.create_cases(registry.tests, [])
+        graph = TestGraph(registry.groups, registry.tests, cases)
         try:
             result = graph.sort()
             self.fail("A cycle has escaped us.")
@@ -277,5 +298,5 @@ class TestMethodMarker(unittest.TestCase):
                 """This tests something."""
                 self.a = 55
 
-        self.assertTrue(hasattr(Example.something, '_proboscis_info_'))
-        self.assertTrue(hasattr(Example.something.im_func, '_proboscis_info_'))
+        self.assertTrue(hasattr(Example.something, '_proboscis_entry_'))
+        self.assertTrue(hasattr(Example.something.im_func, '_proboscis_entry_'))

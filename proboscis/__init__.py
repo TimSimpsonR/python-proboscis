@@ -37,57 +37,6 @@ _override_default_stream=None
 _default_argv=sys.argv
 
 
-class TestEntryInfo:
-    """Represents metadata attached to a TestCase."""
-
-    def __init__(self,
-                 groups=None,
-                 depends_on=None,
-                 depends_on_classes=None,
-                 depends_on_groups=None,
-                 enabled=True,
-                 always_run=False):
-        groups = groups or []
-        depends_on = depends_on or []
-        depends_on_classes = depends_on_classes or []
-        for cls in depends_on_classes:
-            depends_on.append(cls)
-        depends_on_groups = depends_on_groups or []
-        self.groups = groups
-        self.depends_on = depends_on
-        self.depends_on_groups = depends_on_groups
-        self.enabled = enabled
-        self.always_run = always_run
-        self.inherit_groups=False
-
-    def inherit(self, parent_entry):
-        """The main use case is a method inheriting from a class decorator."""
-        for group in parent_entry.groups:
-            if group not in self.groups:
-                self.groups.append(group)
-        for item in parent_entry.depends_on_groups:
-            if item not in self.depends_on_groups:
-                self.depends_on_groups.append(item)
-        for item in parent_entry.depends_on:
-            if item not in self.depends_on:
-                self.depends_on.append(item)
-        if parent_entry.always_run:
-            self.always_run = True
-        #TODO: Determine how this should work.
-
-    def __repr__(self):
-        return "TestEntryInfo(groups=" + str(self.groups) + \
-               ", depends_on=" + str(self.depends_on) + \
-               ", depends_on_groups=" + str(self.depends_on_groups) + \
-               ", enabled=" + str(self.enabled) + ")"
-
-    def __str__(self):
-        return "groups = [" + ",".join(self.groups) + ']' \
-               ", enabled = " + str(self.enabled) + \
-               ", depends_on_groups = " + str(self.depends_on_groups) + \
-               ", depends_on = " + str(self.depends_on)
-
-
 class TestGroup(object):
     """Represents a group of tests.
 
@@ -105,13 +54,82 @@ class TestGroup(object):
         self.entries.append(entry)
 
 
+class TestEntryInfo:
+    """Represents metadata attached to some kind of test code."""
+
+    def __init__(self,
+                 groups=None,
+                 depends_on=None,
+                 depends_on_classes=None,
+                 depends_on_groups=None,
+                 enabled=True,
+                 always_run=False,
+                 before_class=False,
+                 after_class=False):
+        groups = groups or []
+        depends_on = set(depends_on or [])
+        depends_on_classes = depends_on_classes or []
+        for cls in depends_on_classes:
+            depends_on.add(cls)
+        depends_on_groups = depends_on_groups or []
+        self.groups = groups
+        self.depends_on = depends_on
+        self.depends_on_groups = depends_on_groups
+        self.enabled = enabled
+        self.always_run = always_run
+        self.inherit_groups=False
+        self.before_class = before_class
+        self.after_class = after_class
+        if before_class and after_class:
+            raise RuntimeError("It is illegal to set 'before_class' and "
+                               "'after_class' to True.")
+
+    def inherit(self, parent_entry):
+        """The main use case is a method inheriting from a class decorator.
+
+        Returns the groups this entry was added to.
+
+        """
+        added_groups = []
+        for group in parent_entry.groups:
+            if group not in self.groups:
+                self.groups.append(group)
+                added_groups.append(group)
+        for item in parent_entry.depends_on_groups:
+            if item not in self.depends_on_groups:
+                self.depends_on_groups.append(item)
+        for item in parent_entry.depends_on:
+            if item not in self.depends_on:
+                self.depends_on.add(item)
+        if parent_entry.always_run:
+            self.always_run = True
+        #TODO: Determine how this should work.
+        return added_groups
+
+    def __repr__(self):
+        return "TestEntryInfo(groups=" + str(self.groups) + \
+               ", depends_on=" + str(self.depends_on) + \
+               ", depends_on_groups=" + str(self.depends_on_groups) + \
+               ", enabled=" + str(self.enabled) + ")"
+
+    def __str__(self):
+        return "groups = [" + ",".join(self.groups) + ']' \
+               ", enabled = " + str(self.enabled) + \
+               ", depends_on_groups = " + str(self.depends_on_groups) + \
+               ", depends_on = " + str(self.depends_on)
+
+
+
 class TestEntry(object):
     """Represents a function, method, or unittest.TestCase and its info."""
 
     def __init__(self, home_im_class, home, info):
         self.home_im_class = home_im_class
         self.home = home
+        self.homes = set([home])
         self.info = info
+        self.__method = None
+        self.__used_by_factory = False
         for dep in self.info.depends_on:
             if dep is self.home:
                 raise RuntimeError("TestEntry depends on its own class:" +
@@ -132,6 +150,35 @@ class TestEntry(object):
                 return True
         return False
 
+    @property
+    def is_child(self):
+        return self.__method is not None
+
+    def mark_as_child(self, method):
+        """Marks this as a child so it won't be iterated as a top-level item.
+
+        Needed for TestMethods. In Python we decorate functions, not methods,
+        as the decorator doesn't know if a function is a method until later.
+        So we end up storing entries in the Registry's list, but may only
+        want to iterate through these from the parent onward. Finding each item
+        in the list would be a waste of time, so instead we just mark them
+        as such and ignore them during iteration.
+        
+        """
+        self.__method = method
+        self.homes = set([self.home, self.__method.im_class])
+
+    def mark_as_used_by_factory(self):
+        """If a Factory returns an instance of a class, the class will not
+        also be run by Proboscis the usual way (only factory created instances
+        will run).
+        """
+        self.__used_by_factory = True
+
+    @property
+    def method(self):
+        return self.__method
+
     def write_doc(self, file):
         file.write(str(self.home) + "\n")
         doc = pydoc.getdoc(self.home)
@@ -139,6 +186,10 @@ class TestEntry(object):
             file.write(doc + "\n")
         for field in str(self.info).split(', '):
             file.write("\t" + field + "\n")
+
+    @property
+    def used_by_factory(self):
+        return self.__used_by_factory
 
     def __repr__(self):
         return "TestEntry(" + repr(self.home) + ", " + \
@@ -159,6 +210,8 @@ class TestMethodClassEntry(TestEntry):
     def __init__(self, home, info, children):
         super(TestMethodClassEntry, self).__init__(None, home, info)
         self.children = children
+        for child in self.children:
+            child.parent = self
 
     def contains(self, group_names, classes):
         """True if this belongs to any of the given groups or classes."""
@@ -169,7 +222,38 @@ class TestMethodClassEntry(TestEntry):
                 return True
         return False
 
-
+#
+#def find_entry_for_instance(instance):
+#    """Given an instance, return the attached TestEntry or raise."""
+#    if isinstance(instance, types.MethodType):
+#        raise RuntimeError("Method %s is not an instance.")
+#        func = instance.im_func
+#        try:
+#            return func._proboscis_entry_
+#        except AttributeError:
+#            raise RuntimeError("Method %s is not decorated as a test." %
+#                               instance)
+#    if isinstance(instance, type):
+#        raise RuntimeError("Factory %s returned type %s (rather than an "
+#            "instance), which is not allowed." % (factory, instance))
+#    if isinstance(instance, types.FunctionType):
+#        home = instance
+#    else:
+#        home = type(instance)
+#    if issubclass(home, unittest.TestCase):
+#        raise RuntimeError("Factory %s returned a unittest.TestCase "
+#            "instance %s, which is not legal.")
+#    try:
+#        entry = home._proboscis_entry_
+#    except AttributeError:
+#        raise RuntimeError("Factory method %s returned an instance %s "
+#            "which was not tagged as a Proboscis TestEntry." %
+#            (factory, instance))
+#    # There is potentially an issue in that a different Registry might
+#    # register an entry, and we could then read that in with a factory.
+#    # Later the entry would not be found in the dictionary of entries.
+#    state = TestMethodState(entry, instance)
+#    return TestPlan._create_test_cases_for_entry(entry, state)
 
 
 from proboscis.case import TestPlan
@@ -180,36 +264,24 @@ class TestRegistry(object):
     def __init__(self):
         self.reset()
 
+    def _change_function_to_method(self, method, cls_info):
+        """Add an entry to a method by altering its function entry."""
+        cls = method.im_class
+        #func = method.im_func
+        method_entry = method.im_func._proboscis_entry_
+        method_entry.mark_as_child(method)
+        #method_entry.home = method
+        new_groups = method_entry.info.inherit(cls_info)
+        for group_name in new_groups:
+            group = self.get_group(group_name)
+            group.add_entry(method_entry)
+        #entry = self._register_function_or_unittest_testcase(cls, method, method_info)
+        return method_entry
+
     def ensure_group_exists(self, group_name):
         """Adds the group if it does not exist."""
         if not group_name in self.groups:
             self.groups[group_name] = TestGroup(group_name)
-
-#    def filter_test_list(self, group_names=None, classes=None, functions=None):
-#        """Whittles down test list to hose matching criteria."""
-#        if not self.__has_been_sorted:
-#            raise RuntimeError("Can't filter an unsorted list.")
-#        test_homes = []
-#        classes = classes or []
-#        functions = functions or []
-#        for cls in classes:
-#            test_homes.append(cls)
-#        for function in functions:
-#            test_homes.append(function)
-#        group_names = group_names or []
-#        filtered_list = []
-#        while self.tests:
-#            entry = self.tests.pop()
-#            if entry.contains(group_names, test_homes):
-#                filtered_list.append(entry)
-#                # Add any groups this depends on so they will run as well.
-#                for group_name in entry.info.depends_on_groups:
-#                    if not group_name in group_names:
-#                        group_names.append(group_name)
-#                for test_home in entry.info.depends_on:
-#                    if not test_home in test_homes:
-#                        test_homes.append(test_home)
-#        self.tests = list(reversed(filtered_list))
 
     def get_group(self, group_name):
         """Finds a group by name."""
@@ -218,86 +290,120 @@ class TestRegistry(object):
 
     def get_test_plan(self):
         """Returns a sorted TestPlan that can be filtered."""
-        return TestPlan(self.groups, self.tests)
+        return TestPlan(self.groups, self.tests, self.factories)
 
-#    def get_sorted_tests(self):
-#        """Sorts and returns the test list."""
-#        return TestGraph(TestRunner(self))
-#        self.sort()
-#        return self.tests
+#    def _mark_function_with_metadata(self, function, info):
+#        """Attaches info to a function for later reading.
+#
+#        Because the decorated method is not yet seen as connected to the class
+#        all we can do is add the info to it and inspect it later.
+#
+#        """
+#        function._proboscis_info_=info
+#        return function
 
-    def _mark_with_metadata(self, function, info):
-        """Attaches info to a function for later reading.
+    def _mark_home_with_entry(self, entry):
+        """Store the entry inside the function or class it represents.
 
-        Because the decorated method is not yet seen as connected to the class
-        all we can do is add the info to it and inspect it later.
+        This way, non-unittest.TestCase classes can later find information on
+        the methods they own, and so that info can be discovered for the
+        instances returned by factories.
 
         """
-        function._proboscis_info_=info
-        return function
+        if entry.home is not None:
+            if hasattr(entry.home, '_proboscis_entry_'):
+                raise RuntimeError("A test decorator or registration was "
+                    "applied twice to the class or function %s." % entry.home)
+            # Assign reference so factories can discover it using an instance.
+            entry.home._proboscis_entry_ = entry
 
     def register(self, test_home=None, **kwargs):
-#        if self.__has_been_sorted:
-#            raise RuntimeError("New entries not allowed after call to sort.")
         info = TestEntryInfo(**kwargs)
-        if isinstance(test_home, types.FunctionType):
-            return self._mark_with_metadata(test_home, info)
-        elif test_home is None or issubclass(test_home, unittest.TestCase):
+        if test_home is None:
+            return self.register_empty_test_case(info)
+        elif isinstance(test_home, types.FunctionType):
+            return self._register_func(test_home, info)
+        elif issubclass(test_home, unittest.TestCase):
             return self.register_unittest_test_case(test_home, info)
         else:
             return self._register_test_class(test_home, info)
 
+    def register_factory(self, func):
+        self.factories.append(func)
+
+    def register_empty_test_case(self, info):
+        entry = self._register_function_or_unittest_testcase(None, None, info)
+        return None
+
     def register_unittest_test_case(self, test_cls, info):
-        entry = self._register_new_entry(None, test_cls, info)
-        self.tests.append(entry)
+        entry = self._register_function_or_unittest_testcase(None, test_cls, info)
         return entry.home
 
+    #deprecated
     def register_func(self, func, **kwargs):
-#        if self.__has_been_sorted:
-#            raise RuntimeError("New entries not allowed after call to sort.")
         info = TestEntryInfo(**kwargs)
         if not isinstance(func, types.FunctionType):
             raise RuntimeError("Expected a function.")
-        entry = self._register_new_entry(None, func, info)
-        self.tests.append(entry)
+        entry = self._register_function_or_unittest_testcase(None, func, info)
+        #self._mark_home_with_entry(entry)
+        #self.tests.append(entry)
+        #self._register_entry(entry)
         return entry.home
 
-    def _register_method(self, method, cls_info):
-        cls = method.im_class
-        #func = method.im_func
-        method_info = method._proboscis_info_
-        method_info.inherit(cls_info)
-        entry = self._register_new_entry(cls, method, method_info)
-        return entry
+    def _register_func(self, func, info):
+        entry = self._register_function_or_unittest_testcase(None, func, info)
+        #self._register_entry(entry)
+#        self._mark_home_with_entry(entry)
+#        self.tests.append(entry)
+        return entry.home
 
-    def _register_new_entry(self, test_im_class, test_home, info):
-        """Registers a unitttest style test entry."""
-        entry = TestEntry(test_im_class, test_home, info)
+    def _register_entry(self, entry):
+        info = entry.info
         for group_name in info.groups:
             group = self.get_group(group_name)
             group.add_entry(entry)
-        for group in info.depends_on_groups:
-            self.ensure_group_exists(group)
-        #self.tests.append(entry)
-        if test_home:
-            if not test_home in self.classes:
-                self.classes[test_home] = []
-            self.classes[test_home].append(entry)
+        for group_name in info.depends_on_groups:
+            self.ensure_group_exists(group_name)
+        if entry.home:
+            if not entry.home in self.classes:
+                self.classes[entry.home] = []
+            self.classes[entry.home].append(entry)
+            self._mark_home_with_entry(entry)
+        self.tests.append(entry)
+
+    def _register_function_or_unittest_testcase(self, test_im_class, test_home, info):
+        """Registers a unitttest style test entry."""
+        entry = TestEntry(test_im_class, test_home, info)
+        self._register_entry(entry)
         return entry
 
     def _register_test_class(self, cls, info):
         """Registers the methods within a class."""
         test_entries = []
         members = inspect.getmembers(cls, inspect.ismethod)
+        before_class_methods = []
+        after_class_methods = []
         for member in members:
             method = member[1]
             if hasattr(method, 'im_func'):
                 func = method.im_func
-                if hasattr(func, "_proboscis_info_"):
-                    entry = self._register_method(method, info)
+                if hasattr(func, "_proboscis_entry_"):
+                    entry = self._change_function_to_method(method, info)
                     test_entries.append(entry)
+                    if entry.info.before_class:
+                        before_class_methods.append(entry)
+                    elif entry.info.after_class:
+                        after_class_methods.append(entry)
+        for before_entry in before_class_methods:
+            for test_entry in test_entries:
+                if not test_entry.info.before_class:
+                    test_entry.info.depends_on.add(before_entry.home)
+        for after_entry in after_class_methods:
+            for test_entry in test_entries:
+                if not test_entry.info.after_class:
+                    after_entry.info.depends_on.add(test_entry.home)
         entry = TestMethodClassEntry(cls, info, test_entries)
-        self.tests.append(entry)
+        self._register_entry(entry)
         return entry.home
 
 
@@ -306,83 +412,11 @@ class TestRegistry(object):
         self.tests = []
         self.groups = {}
         self.classes = {}
-#        self.__has_been_sorted = False
-
-#    def sort(self):
-#        """Sorts all registered test entries."""
-#        if self.__has_been_sorted:
-#            return
-#        self.__has_been_sorted = True
-#        self.tests = TestGraph(self).sort()
-
-#class TestCase(object):
-#    """Represents a union of a TestCase and TestEntryInfo.
-#
-#    This class is also used to store status information, such as the dependent
-#    TestEntry objects (discovered when this test is sorted) and any failure
-#    in the dependencies of this test (used to raise SkipTest if needed).
-#
-#    """
-#    def __init__(self, home, info):
-#        self.home = home
-#        self.home_cls = None  # Only set for bound methods
-#        self.info = info
-#        self.dependents = []  # This is populated when we sort the tests.
-#        self.dependency_failure = None
-#        for dep in self.info.depends_on:
-#            if dep is self.home:
-#                raise RuntimeError("TestEntry depends on its own class:" +
-#                                   str(self))
-#        for dependency_group in self.info.depends_on_groups:
-#            for my_group in self.info.groups:
-#                if my_group == dependency_group:
-#                    raise RuntimeError("TestEntry depends on a group it " \
-#                                       "itself belongs to: " + str(self))
-#
-#    def check_dependencies(self):
-#        """If a dependency has failed, SkipTest is raised."""
-#        if self.dependency_failure != None and self.dependency_failure != self\
-#           and not self.info.always_run:
-#            raise SkipTest("Failure in " + str(self.dependency_failure.home))
-#
-#    def contains(self, group_names, classes):
-#        """True if this belongs to any of the given groups or classes."""
-#        for group_name in group_names:
-#            if group_name in self.info.groups:
-#                return True
-#        for cls in classes:
-#            if cls == self.home:
-#                return True
-#        return False
-#
-#    def fail_test(self, dependency_failure=None):
-#        """Called when this entry fails to notify dependents."""
-#        if not dependency_failure:
-#            dependency_failure = self
-#        if not self.dependency_failure:  # Do NOT overwrite the first cause
-#            self.dependency_failure = dependency_failure
-#            for dependent in self.dependents:
-#                dependent.fail_test(dependency_failure=dependency_failure)
-#
-#    def write_doc(self, file):
-#        file.write(str(self.home) + "\n")
-#        doc = pydoc.getdoc(self.home)
-#        if doc:
-#            file.write(doc + "\n")
-#        for field in str(self.info).split(', '):
-#            file.write("\t" + field + "\n")
-#
-#    def __repr__(self):
-#        return "TestEntry(" + repr(self.home) + ", " + \
-#               repr(self.info) + ", " + object.__repr__(self) + ")"
-#
-#    def __str__(self):
-#        return "Home = " + str(self.home) + ", Info(" + str(self.info) + ")"
-#
-
+        self.factories = []
 
 
 default_registry = TestRegistry()
+
 
 def register(**kwargs):
     """Registers a test in proboscis's default registry."""
@@ -399,139 +433,46 @@ def test(home=None, **kwargs):
         return cb_method
 
 
-def test_func(home=None, **kwargs):
-    """Put this on a free-standing function to register it correctly."""
+#def test_func(home=None, **kwargs):
+#    """Put this on a free-standing function to register it correctly."""
+#    if home:
+#        return default_registry.register_func(home)
+#    else:
+#        def cb_method(home_2):
+#            return default_registry.register_func(home_2, **kwargs)
+#        return cb_method
+
+def before_class(home=None, **kwargs):
+    """Like @test but indicates this should run before other class methods."""
     if home:
-        return default_registry.register_func(home)
+        return default_registry.register(home, before_class=True)
     else:
         def cb_method(home_2):
-            return default_registry.register_func(home_2, **kwargs)
+            return default_registry.register(home_2, before_class=True,
+                                             **kwargs)
         return cb_method
 
 
-#def before_class(home):
-#    home._before_class = True
-
-#class TestResultListener():
-#    """Implements methods of TestResult to be informed of test failures."""
-#
-#    def __init__(self, chain_to_cls):
-#        self.chain_to_cls = chain_to_cls
-#
-#    def addError(self, test, err):
-#        self.onError(test)
-#        self.chain_to_cls.addError(self, test, err)
-#
-#    def addFailure(self, test, err):
-#        self.onError(test)
-#        self.chain_to_cls.addFailure(self, test, err)
-#
-#    def onError(self, test):
-#        """Notify a test entry and its dependents of failure."""
-#        if hasattr(test.test, "__proboscis_entry__"):
-#            entry = test.test.__proboscis_entry__
-#            entry.fail_test()
-
-#
-#class TestResult(TestResultListener, result.TextTestResult):
-#    """Mixes TestResultListener with nose's TextTestResult class."""
-#
-#    # I had issues extending TextTestResult directly so resorted to this.
-#
-#    def __init__(self, stream, descriptions, verbosity, config=None,
-#                 errorClasses=None):
-#        TestResultListener.__init__(self, result.TextTestResult)
-#        result.TextTestResult.__init__(self, stream, descriptions, verbosity,
-#                                       config, errorClasses)
+def after_class(home=None, **kwargs):
+    """Like @test but indicates this should run before other class methods."""
+    if home:
+        return default_registry.register(home, after_class=True)
+    else:
+        def cb_method(home_2):
+            return default_registry.register(home_2, after_class=True,
+                                             **kwargs)
+        return cb_method
 
 
-#def test_runner_cls(wrapped_cls, cls_name):
-#    """Creates a test runner class which uses Proboscis TestResult."""
-#    new_dict = wrapped_cls.__dict__.copy()
-#
-#    def cb_make_result(self):
-#        return TestResult(self.stream, self.descriptions, self.verbosity)
-#    new_dict["_makeResult"] = cb_make_result
-#    return type(cls_name, (wrapped_cls,), new_dict)
+def factory(func=None, **kwargs):
+    """A factory method returns new instances of Test classes."""
+    if func:
+        return default_registry.register_factory(func)
+    else:
+        def cb_method(func_2):
+            return default_registry.register_factory(func_2, **kwargs)
+        return cb_method
 
-
-#
-#class FunctionTest(unittest.FunctionTestCase):
-#    """Wraps a single function as a test runnable by unittest / nose."""
-#
-#    def __init__(self, test_entry):
-#        _old_setup = None
-#        if hasattr(test_entry.home, 'setup'):  # Don't destroy nose-style setup
-#            _old_setup = test_entry.home.setup
-#        def cb_check(self=None):
-#            test_entry.check_dependencies()
-#            if _old_setup is not None:
-#                _old_setup()
-#        self.__proboscis_entry__ = test_entry
-#        unittest.FunctionTestCase.__init__(self, testFunc=test_entry.home,
-#                                           setUp=cb_check)
-#
-#
-#class TestNgStyleMethodTest(unittest.FunctionTestCase):
-#    """Wraps a method which is associated to a non-unique instance."""
-#
-#    def __init__(self, instance, test_entry):
-#        _old_setup = None
-#        if hasattr(test_entry.home, 'setup'):  # Don't destroy nose-style setup
-#            _old_setup = test_entry.home.setup
-#        def cb_check(self=None):
-#            test_entry.check_dependencies()
-#            if _old_setup is not None:
-#                _old_setup()
-#        self.__proboscis_entry__ = test_entry
-#        unittest.FunctionTestCase.__init__(self, testFunc=test_entry.home,
-#                                           setUp=cb_check)
-#
-#
-#class TestSuiteCreator(object):
-#    """Turns Proboscis test entries into elements to be run by unittest."""
-#
-#    def __init__(self, loader):
-#        self.loader = loader
-#
-#    def loadTestsFromTestEntry(self, test_entry):
-#        """Wraps a test class in magic so it will skip on dependency failures.
-#
-#        Decorates the testEntry class's setUp method to raise SkipTest if
-#        tests this test was dependent on failed or had errors.
-#
-#        """
-#        if test_entry.home is None:
-#            return []
-#        if isinstance(test_entry.home, type):
-#            return self.wrap_class(test_entry)
-#        if isinstance(test_entry.home, types.FunctionType):
-#            return self.wrap_function(test_entry)
-#        raise RuntimeError("Unknown test type:" + str(type(test_entry.home)))
-#
-#    def wrap_class(self, test_entry):
-#        def cb_check(self=None):
-#            test_entry.check_dependencies()
-#        testCaseClass = decorate_class(setUp_method=cb_check)(test_entry.home)
-#        testCaseNames = self.loader.getTestCaseNames(testCaseClass)
-#        if not testCaseNames and hasattr(testCaseClass, 'runTest'):
-#            testCaseNames = ['runTest']
-#        suite = []
-#        if issubclass(test_entry.home, unittest.TestCase):
-#            for name in testCaseNames:
-#                test_instance = testCaseClass(name)
-#                setattr(test_instance, "__proboscis_entry__", test_entry)
-#                suite.append(test_instance)
-#        #else:
-#        #    raise RuntimeError("can't yet wrap test classes of type " +
-#        #                       str(test_entry.home) + ".")
-#        return suite
-#
-#    def wrap_function(self, test_entry):
-#        if test_entry.home_cls:
-#            raise RuntimeError("HOME " + str(test_entry.home))
-#        return [FunctionTest(test_entry)]
-#
 
 class TestProgram(core.TestProgram):
     """The entry point of Proboscis.
@@ -585,13 +526,12 @@ class TestProgram(core.TestProgram):
         
         if len(groups) > 0:
             self.plan.filter(group_names=groups)
-        cases = self.plan.tests
-        #self.entries = registry.get_sorted_tests()
+        self.cases = self.plan.tests
         if "--show-plan" in argv:
             self.__run = self.show_plan
         else:
             self.__suite = self.create_test_suite_from_entries(config,
-                                                               cases)
+                                                               self.cases)
             def run():
                 core.TestProgram.__init__(
                     self,
@@ -630,8 +570,8 @@ class TestProgram(core.TestProgram):
     def show_plan(self):
         """Prints information on test entries and the order they will run."""
         print("   *  *  *  Test Plan  *  *  *")
-        for entry in self.entries:
-            entry.write_doc(sys.stdout)
+        for case in self.cases:
+            case.write_doc(sys.stdout)
     
     @property
     def test_suite(self):

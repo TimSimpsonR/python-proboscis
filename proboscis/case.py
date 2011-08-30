@@ -14,8 +14,10 @@
 #    under the License.
 
 """Creates TestCases from a list of TestEntries."""
-from functools import wraps
 
+import abc
+from functools import wraps
+import pydoc
 import types
 import unittest
 
@@ -30,30 +32,81 @@ from proboscis.sorting import TestGraph
 class TestPlan(object):
     """Grabs information from the TestRegistry and creates a test plan."""
 
-    def __init__(self, groups, test_entries):
-        graph = self._create_graph(groups, test_entries)
+    def __init__(self, groups, test_entries, factories):
+        test_cases = self.create_cases(test_entries, factories)
+        graph = TestGraph(groups, test_entries, test_cases)
         self.tests = graph.sort()
 
     @staticmethod
-    def _create_graph(groups, test_entries):
-        tests = []
-        entries = {}
-        for entry in test_entries:
-            test_cases = TestPlan._create_test_cases_for_entry(entry)
-            entries[entry] = test_cases
-            tests += test_cases
-        return TestGraph(groups, entries, tests)
+    def create_cases_from_instance(factory, instance):
+        if isinstance(instance, type):
+            raise RuntimeError("Factory %s returned type %s (rather than an "
+                "instance), which is not allowed." % (factory, instance))
+        if isinstance(instance, types.MethodType):
+            home = instance.im_func
+        elif isinstance(instance, types.FunctionType):
+            home = instance
+        else:
+            home = type(instance)
+        if issubclass(home, unittest.TestCase):
+            raise RuntimeError("Factory %s returned a unittest.TestCase "
+                "instance %s, which is not legal.")
+        try:
+            entry = home._proboscis_entry_
+        except AttributeError:
+            raise RuntimeError("Factory method %s returned an instance %s "
+                "which was not tagged as a Proboscis TestEntry." %
+                (factory, instance))
+        entry.mark_as_used_by_factory()  # Don't iterate this since a
+                                         # function is creating it.
+        if entry.is_child:
+            raise RuntimeError("Function %s, which exists as a bound method "
+                "in a decorated class may not be returned from a factory." %
+                instance)
+        # There is potentially an issue in that a different Registry might
+        # register an entry, and we could then read that in with a factory.
+        # Later the entry would not be found in the dictionary of entries.
+        if isinstance(instance, types.MethodType):
+            home = instance.im_func
+            try:
+                im_self = instance.im_self
+            except AttributeError:
+                raise RuntimeError("Only bound methods may be returned from "
+                    "factories. %s is not bound." % instance)
+            state = TestMethodState(instance.im_self)
+        else:
+            state = TestMethodState(entry, instance)
+        return TestPlan._create_test_cases_for_entry(entry, state)
 
     @staticmethod
-    def _create_test_cases_for_entry(entry):
+    def create_cases(test_entries, factories):
+        tests = []
+        entries = {}
+        for factory in factories:
+            list = factory()
+            for item in list:
+                cases = TestPlan.create_cases_from_instance(factory, item)
+                tests += cases
+        for entry in test_entries:
+            if not entry.is_child and not entry.used_by_factory:
+                test_cases = TestPlan._create_test_cases_for_entry(entry)
+                entries[entry] = test_cases
+                tests += test_cases
+        return tests
+
+    @staticmethod
+    def _create_test_cases_for_entry(entry, state=None):
         """Processes a test case entry."""
-        if not hasattr(entry, 'children'):
+        if not hasattr(entry, 'children'):  # function or unittest.TestCase
             return [TestCase(entry)]
-        #TODO: If its a factory, make more than one state, and for each one
-        # create new TestCase instances for all the entries.
-        state = TestMethodState(entry)
-        return [TestCase(child_entry, state=state)
-                for child_entry in entry.children]
+        state = state or TestMethodState(entry)
+        cases = []
+        for child_entry in entry.children:
+#            for before_method in entry.before_methods:
+#                b_m = TestCase(before_method, state=state)
+            case = TestCase(child_entry, state=state)
+            cases.append(case)
+        return cases
 
     def create_test_suite(self, config, loader):
         """Transforms the plan into a Nose test suite."""
@@ -61,10 +114,6 @@ class TestPlan(object):
         creator = TestSuiteCreator(loader)
         suite = ContextSuiteFactory(config)([])
         for case in self.tests:
-            print("GET READY FOR CASE!")
-            print(case.entry.info.enabled)
-            print(case.entry.home)
-            print()
             if case.entry.info.enabled and case.entry.home is not None:
                 tests = creator.loadTestsFromTestEntry(case)
                 for test in tests:
@@ -127,6 +176,14 @@ class TestCase(object):
             self.dependency_failure = dependency_failure
             for dependent in self.dependents:
                 dependent.fail_test(dependency_failure=dependency_failure)
+
+    def write_doc(self, file):
+        file.write(str(self.entry.home) + "\n")
+        doc = pydoc.getdoc(self.entry.home)
+        if doc:
+            file.write(doc + "\n")
+        for field in str(self.entry.info).split(', '):
+            file.write("\t" + field + "\n")
 
     def __repr__(self):
         return "TestCase(" + repr(self.entry.home) + ", " + \
@@ -201,10 +258,10 @@ class FunctionTest(unittest.FunctionTestCase):
 class TestMethodState(object):
     """Manages a test class instance used by one or more test methods."""
 
-    def __init__(self, entry):
+    def __init__(self, entry, instance=None):
         self.entry = entry
         assert isinstance(self.entry, TestMethodClassEntry)
-        self.instance = None
+        self.instance = instance
 
     def get_state(self):
         if not self.instance:
@@ -224,8 +281,10 @@ class MethodTest(unittest.FunctionTestCase):
             test_case.check_dependencies()
         @wraps(test_case.entry.home)
         def func(self=None):  # Called by FunctionTestCase
-            unbound_method = test_case.entry.home
-            unbound_method(test_case.state.get_state())
+            func = test_case.entry.home
+            func(test_case.state.get_state())
+            #unbound_method = test_case.entry.home
+            #unbound_method(test_case.state.get_state())
         self.__proboscis_case__ = test_case
         unittest.FunctionTestCase.__init__(self, testFunc=func, setUp=cb_check)
 
@@ -246,12 +305,13 @@ class TestSuiteCreator(object):
         home = test_case.entry.home
         if home is None:
             return []
-        if isinstance(home, types.MethodType):
-            return self.wrap_method(test_case)
         if isinstance(home, type):
             return self.wrap_unittest_test_case_class(test_case)
         if isinstance(home, types.FunctionType):
-            return self.wrap_function(test_case)
+            if home._proboscis_entry_.is_child:
+                return self.wrap_method(test_case)
+            else:
+                return self.wrap_function(test_case)
         raise RuntimeError("Unknown test type:" + str(type(home)))
 
     def wrap_function(self, test_case):

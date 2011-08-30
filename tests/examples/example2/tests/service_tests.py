@@ -4,20 +4,19 @@ from nose.tools import assert_equal
 from nose.tools import assert_false
 from nose.tools import assert_true
 from proboscis import test
-from proboscis import test_func
 
 service_config = {
     "user_name":"bob",
     "pass_word":"pass_word"
 }
 
-@test_func
+@test
 def create_database():
     """Creates a local database."""
     mymodule.create_database()
     assert_true(mymodule.tables_exist())
 
-@test_func
+@test
 def start_web_server():
     """Start up web server then issue a connect to make sure its up."""
     mymodule.start_web_server()
