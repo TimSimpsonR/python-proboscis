@@ -1,9 +1,7 @@
 from proboscis import register
 from proboscis import TestProgram
 
-if __name__ == '__main__':
-    # Import all modules which have been decorated with @test.
-    from tests import util_test
+def run_tests():
     from tests import service_tests
 
     # Now create some groups of groups.
@@ -17,3 +15,7 @@ if __name__ == '__main__':
 
     # Run Proboscis and exit.
     TestProgram().run_and_exit()
+    
+
+if __name__ == '__main__':
+    run_tests()

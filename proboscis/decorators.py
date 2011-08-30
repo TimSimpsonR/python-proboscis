@@ -20,10 +20,11 @@ import signal
 def expect_exception(exception_type):
     """Decorates a test method to show it expects an exception to be raised."""
     def return_method(method):
-        def new_method(self):
+        def new_method(*kargs, **kwargs):
             try:
-                method(self)
-                self.fail("Expected exception of type " + str(exception_type))
+                method(*kargs, **kwargs)
+                raise AssertionError("Expected exception of type " +
+                                     str(exception_type))
             except exception_type:
                 pass  # This is what we want
         return new_method

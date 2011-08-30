@@ -30,38 +30,50 @@ def assert_sort_order_is_correct(result):
     """Tests the result of a sort."""
     # TODO(tim.simpson): Clean this up, its kind of confusing.
     for i in range(len(result)):
-        entry = result[i]
-        for d in entry.info.depends_on_classes:
+        case = result[i]
+        for d in case.entry.info.depends_on:
             for j in range(i, len(result)):
-                if d is result[j].cls:
-                    return "Invalid sort: " + str(entry) + " appears " + \
+                if d is result[j].entry.home:
+                    return "Invalid sort: " + str(case) + " appears " + \
                            " before " + str(result[j]) + " but depends on it."
-        for d in entry.info.depends_on_groups:
+        for d in case.entry.info.depends_on_groups:
             for j in range(i, len(result)):
                 for g in result[j].groups:
                     if d == g:
-                        return "Invalid sort: " + str(entry) + \
+                        return "Invalid sort: " + str(case) + \
                                   " depends on group " + d + ", but " \
                                   "appears before " + str(result[j]) + \
                                   " which is itself in group " + g + "."
 
+
 # Fake classes we use as Nodes
-class N2:
+class N2(unittest.TestCase):
     pass
-class N3:
+class N3(unittest.TestCase):
     pass
-class N5:
+def N5():
     pass
-class N7:
+def N7():
     pass
-class N8:
+class N8(unittest.TestCase):
     pass
-class N9:
+class N9(unittest.TestCase):
     pass
-class N10:
+def N10():
     pass
-class N11:
+class N11(unittest.TestCase):
     pass
+
+
+def remove_entry(home):
+    """Proboscis fails if a class or function is registry twice.
+    This prevents that."""
+    if hasattr(home, '_proboscis_entry_'):
+        delattr(home, '_proboscis_entry_')
+
+def remove_entries():
+    for item in [N2, N3, N5, N7, N8, N9, N10, N11]:
+        remove_entry(item)
 
 class TestValidation(unittest.TestCase):
 
@@ -87,17 +99,22 @@ class TestValidation(unittest.TestCase):
 
 class TestTopologicalSort(unittest.TestCase):
 
+    def setUp(self):
+       remove_entries()
+
     def test_simple_sort(self):
-        from proboscis import TestGraph
+        from proboscis.case import TestPlan
+        from proboscis.sorting import TestGraph
         from proboscis import TestRegistry
         registry = TestRegistry()
         registry.register(N2, groups=["blah"], depends_on_classes=[N11])
         registry.register(N3, depends_on_classes=[N11, N2])
         registry.register(N7, depends_on_groups=["blah"])
         registry.register(N11)
-        graph = TestGraph(registry)
+        cases = TestPlan.create_cases(registry.tests, [])
+        graph = TestGraph(registry.groups, registry.tests, cases)
         sorted_entries = graph.sort()
-        result = list(entry.cls for entry in sorted_entries)
+        result = list(case.entry.home for case in sorted_entries)
         expected = [N11, N2, N3, N7]
         self.assertEqual(4, len(result))
         self.assertEqual(N11, result[0])
@@ -106,7 +123,8 @@ class TestTopologicalSort(unittest.TestCase):
                         (result[2] == N7 or result[3] == N2))
 
     def test_complex_sort(self):
-        from proboscis import TestGraph
+        from proboscis.case import TestPlan
+        from proboscis.sorting import TestGraph
         from proboscis import TestRegistry
 
         registry = TestRegistry()
@@ -118,7 +136,8 @@ class TestTopologicalSort(unittest.TestCase):
         registry.register(N9, depends_on_classes=[N8, N11])
         registry.register(N10, depends_on_classes=[N3, N11])
         registry.register(N11, depends_on_classes=[N5, N7])
-        graph = TestGraph(registry)  # sort the TestEntry instances
+        cases = TestPlan.create_cases(registry.tests, [])
+        graph = TestGraph(registry.groups, registry.tests, cases)
         result = graph.sort()
         self.assertEqual(8, len(result))
         msg = assert_sort_order_is_correct(result)
@@ -126,7 +145,8 @@ class TestTopologicalSort(unittest.TestCase):
 
 
     def test_do_not_allow_sneaky_cycle(self):
-        from proboscis import TestGraph
+        from proboscis.case import TestPlan
+        from proboscis.sorting import TestGraph
         from proboscis import TestRegistry
 
         registry = TestRegistry()
@@ -139,7 +159,8 @@ class TestTopologicalSort(unittest.TestCase):
         registry.register(N10, depends_on_classes=[N3, N11])
         registry.register(N11, groups=["something"],
                           depends_on_classes=[N5, N7])
-        graph = TestGraph(registry)  # sort the TestEntry instances
+        cases = TestPlan.create_cases(registry.tests, [])
+        graph = TestGraph(registry.groups, registry.tests, cases)
         try:
             result = graph.sort()
             self.fail("A cycle has escaped us.")
@@ -153,51 +174,51 @@ class TestModuleConversionToNodes(unittest.TestCase):
         import proboscis_example
         from proboscis import TestRegistry
         
-        old_default_registry = proboscis.default_registry
-        proboscis.default_registry = TestRegistry()
+        old_default_registry = proboscis.DEFAULT_REGISTRY
+        proboscis.DEFAULT_REGISTRY = TestRegistry()
         reload(proboscis_example)
-        self.registry = proboscis.default_registry
+        self.registry = proboscis.DEFAULT_REGISTRY
         proboscis.default_registry = old_default_registry
-        self.registry.sort()
+        self.plan = self.registry.get_test_plan()
 
     def test_should_load_correct_number_of_tests(self):
-        self.assertEqual(5, len(self.registry.get_sorted_tests()))
+        self.assertEqual(5, len(self.plan.tests))
 
     def test_startup_must_be_first(self):
         from proboscis_example import StartUp
-        self.assertEquals(StartUp, self.registry.get_sorted_tests()[0].cls)
+        self.assertEquals(StartUp, self.plan.tests[0].entry.home)
 
     def test_filter_with_one(self):
-        self.registry.filter_test_list(group_names=["init"])
-        filtered = self.registry.get_sorted_tests()
+        self.plan.filter(group_names=["init"])
+        filtered = self.plan.tests
         self.assertEqual(1, len(filtered))
         from proboscis_example import StartUp
-        self.assertEqual(StartUp, filtered[0].cls)
+        self.assertEqual(StartUp, filtered[0].entry.home)
 
     def test_filter_should_keep_dependencies(self):
-        self.registry.filter_test_list(group_names=["integration"])
-        filtered = self.registry.get_sorted_tests()
+        self.plan.filter(group_names=["integration"])
+        filtered = self.plan.tests
         # Should include "integration" group and also "init" group since it
         # is a dependency.
         self.assertEqual(4, len(filtered))
         from proboscis_example import StartUp
-        self.assertEqual(StartUp, filtered[0].cls)
+        self.assertEqual(StartUp, filtered[0].entry.home)
         # All the other ones must be in the integration group
         for i in range(1, 4):
-            self.assertEqual("integration", filtered[i].info.groups[0])
+            self.assertEqual("integration", filtered[i].entry.info.groups[0])
 
     def test_filter_with_classes(self):
         from proboscis_example import RandomTestOne
-        self.registry.filter_test_list(classes=[RandomTestOne])
-        filtered = self.registry.get_sorted_tests()
+        self.plan.filter(classes=[RandomTestOne])
+        filtered = self.plan.tests
         # Should include RandomTestOne, which depends on RandomTestZero,
         # which depends on init
         self.assertEquals(3, len(filtered))
         from proboscis_example import StartUp
-        self.assertEqual(StartUp, filtered[0].cls)
+        self.assertEqual(StartUp, filtered[0].entry.home)
         from proboscis_example import RandomTestZero
-        self.assertEqual(RandomTestZero, filtered[1].cls)
-        self.assertEqual(RandomTestOne, filtered[2].cls)
+        self.assertEqual(RandomTestZero, filtered[1].entry.home)
+        self.assertEqual(RandomTestOne, filtered[2].entry.home)
 
 
 @time_out(2)
@@ -243,8 +264,7 @@ class TestExpectExceptionDecorator(unittest.TestCase):
 
     def test_should_fail_if_no_exception_occurs(self):
         case = MockCase()
-        case.unexceptional_function()
-        self.assertTrue(case.fail_was_called)
+        self.assertRaises(AssertionError, case.unexceptional_function)
 
     def test_should_not_fail_if_exception_occurs(self):
         case = MockCase()
@@ -252,3 +272,31 @@ class TestExpectExceptionDecorator(unittest.TestCase):
         self.assertFalse(case.fail_was_called)
 
 
+class TestMethodMarker(unittest.TestCase):
+
+    def setUp(self):
+        import proboscis
+        from proboscis import TestRegistry
+        self.old_default_registry = proboscis.DEFAULT_REGISTRY
+        proboscis.DEFAULT_REGISTRY = TestRegistry()
+
+    def tearDown(self):
+        import proboscis
+        proboscis.DEFAULT_REGISTRY = self.old_default_registry
+
+    def test_should_mark_methods(self):
+        import proboscis
+        from proboscis import test
+
+        class Example(object):
+
+            def __init__(self):
+                self.a = 5
+
+            @test
+            def something(self):
+                """This tests something."""
+                self.a = 55
+
+        self.assertTrue(hasattr(Example.something, '_proboscis_entry_'))
+        self.assertTrue(hasattr(Example.something.im_func, '_proboscis_entry_'))

@@ -23,6 +23,10 @@ def start_web_server():
         }
     }
 
+    
+def bad_start_web_server():
+    raise RuntimeError("Error starting service.")
+
 
 def stop_web_server():
     global web_server

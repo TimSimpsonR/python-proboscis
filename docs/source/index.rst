@@ -21,7 +21,6 @@
    download
    pydocs
 
-
 Indices and tables
 ==================
 
