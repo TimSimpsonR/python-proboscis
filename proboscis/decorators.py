@@ -17,9 +17,13 @@
 
 import signal
 
+from functools import wraps
+
+
 def expect_exception(exception_type):
     """Decorates a test method to show it expects an exception to be raised."""
     def return_method(method):
+        @wraps(method)
         def new_method(*kargs, **kwargs):
             try:
                 method(*kargs, **kwargs)
@@ -43,6 +47,7 @@ def time_out(time):
 
     def return_method(func):
         """Turns function into decorated function."""
+        @wraps(func)
         def new_method(*kargs, **kwargs):
             previous_handler = signal.signal(signal.SIGALRM, cb_timeout)
             try:
@@ -62,19 +67,23 @@ def decorate_class(setUp_method=None, tearDown_method=None):
         new_dict = cls.__dict__.copy()
         if setUp_method:
             if hasattr(cls, "setUp"):
+                @wraps(setUp_method)
                 def _setUp(self):
                     setUp_method(self)
                     cls.setUp(self)
             else:
+                @wraps(setUp_method)
                 def _setUp(self):
                     setUp_method(self)
             new_dict["setUp"] = _setUp
         if tearDown_method:
             if hasattr(cls, "tearDown"):
+                @wraps(tearDown_method)
                 def _tearDown(self):
                     tearDown_method(self)
                     cls.setUp(self)
             else:
+                @wraps(tearDown_method)
                 def _tearDown(self):
                     tearDown_method(self)
             new_dict["tearDown"] = _tearDown

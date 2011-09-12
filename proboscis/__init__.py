@@ -259,8 +259,11 @@ class TestRegistry(object):
         """
         if entry.home is not None:
             if hasattr(entry.home, '_proboscis_entry_'):
-                raise RuntimeError("A test decorator or registration was "
-                    "applied twice to the class or function %s." % entry.home)
+                # subclasses will get this attribute from their parents.
+                if entry.home._proboscis_entry_.home == entry.home:
+                    raise RuntimeError("A test decorator or registration was "
+                        "applied twice to the class or function %s." %
+                        entry.home)
             # Assign reference so factories can discover it using an instance.
             entry.home._proboscis_entry_ = entry
 
