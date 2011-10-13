@@ -21,6 +21,10 @@ more Pythonic.
 
 """
 
+
+import traceback
+
+
 ASSERTION_ERROR=AssertionError
 
 #TODO:
@@ -117,6 +121,40 @@ def assert_true(condition, message=None):
         if not message:
             message = "Condition was False."
         raise ASSERTION_ERROR(message)
+
+
+def assert_raises(exception_type, function, *args, **kwargs):
+    """Calls function and fails the test if an exception is not raised.
+
+    The exact type of exception must be thrown.
+
+    """
+    actual_exception = None
+    try:
+        function(*args, **kwargs)
+    except exception_type as e:
+        actual_exception = e
+    if actual_exception is None:
+        fail("Expected an exception of type %s to be raised.")
+    elif type(actual_exception) != exception_type:
+        info = traceback.format_exc()
+        fail("Expected a raised exception of type %s, but found type %s. "
+            "%s" % (exception_type, type(actual_exception), info))
+
+
+def assert_raises_instance(exception_type, function, *args, **kwargs):
+    """Calls function and fails the test if an exception is not raised.
+
+    The exception thrown must only be an instance of the given type.
+
+    """
+    actual_exception = None
+    try:
+        function(*args, **kwargs)
+    except exception_type as e:
+        actual_exception = e
+    if actual_exception is None:
+        fail("Expected an exception of type %s to be raised.")
 
 
 def fail(message=None):

@@ -19,6 +19,7 @@ import time
 import unittest
 
 from nose import core
+from proboscis.asserts import assert_raises
 
 from proboscis.decorators import expect_exception
 from proboscis.decorators import time_out
@@ -245,11 +246,9 @@ class TestTimeoutDecorator(unittest.TestCase):
 
 class MockCase(object):
 
-    def __init__(self):
-        self.fail_was_called = False
-
-    def fail(self, msg):
-        self.fail_was_called = True
+    @expect_exception(TimeoutError)
+    def broadly_exceptional_function(self):
+        raise Exception()
 
     @expect_exception(TimeoutError)
     def exceptional_function(self):
@@ -259,6 +258,10 @@ class MockCase(object):
     def unexceptional_function(self):
         pass
 
+    @expect_exception(Exception)
+    def broadly_decorated_function(self):
+        raise TimeoutError()
+
 
 class TestExpectExceptionDecorator(unittest.TestCase):
 
@@ -266,10 +269,46 @@ class TestExpectExceptionDecorator(unittest.TestCase):
         case = MockCase()
         self.assertRaises(AssertionError, case.unexceptional_function)
 
+    def test_should_fail_if_incorrect_exception_occurs(self):
+        case = MockCase()
+        # The original exception is raised unfiltered
+        self.assertRaises(Exception, case.broadly_exceptional_function)
+
     def test_should_not_fail_if_exception_occurs(self):
         case = MockCase()
         case.exceptional_function()
-        self.assertFalse(case.fail_was_called)
+
+    def test_should_fail_if_incorrect_exception_occurs(self):
+        case = MockCase()
+        case.broadly_decorated_function()
+
+
+class TestAssertRaises(unittest.TestCase):
+
+    def test_should_fail_if_no_exception_occurs(self):
+        def throw_time_out():
+            pass
+        self.assertRaises(AssertionError, assert_raises, TimeoutError,
+                          throw_time_out)
+
+    def test_should_fail_if_incorrect_exception_occurs(self):
+        def throw_time_out():
+            raise Exception()
+        self.assertRaises(AssertionError, assert_raises, TimeoutError,
+                          throw_time_out)
+
+    def test_should_not_fail_if_exception_occurs(self):
+        def throw_time_out():
+            raise TimeoutError()
+        assert_raises(TimeoutError, throw_time_out)
+
+    def test_should_fail_if_incorrect_exception_occurs(self):
+        """The subclass is not good enough for assert_raises."""
+        def throw_time_out():
+            raise TimeoutError()
+        self.assertRaises(AssertionError, assert_raises, Exception,
+                          throw_time_out)
+
 
 
 class TestMethodMarker(unittest.TestCase):

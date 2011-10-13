@@ -19,18 +19,15 @@ import signal
 
 from functools import wraps
 
+from proboscis.asserts import assert_raises_instance
+
 
 def expect_exception(exception_type):
     """Decorates a test method to show it expects an exception to be raised."""
     def return_method(method):
         @wraps(method)
-        def new_method(*kargs, **kwargs):
-            try:
-                method(*kargs, **kwargs)
-                raise AssertionError("Expected exception of type " +
-                                     str(exception_type))
-            except exception_type:
-                pass  # This is what we want
+        def new_method(*args, **kwargs):
+            assert_raises_instance(exception_type, method, *args, **kwargs)
         return new_method
     return return_method
 
@@ -53,6 +50,28 @@ def time_out(time):
             try:
                 signal.alarm(time)
                 return func(*kargs, **kwargs)
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, previous_handler)
+        return new_method
+    return return_method
+
+
+def decorate_func(func, time, exception_type_tuple):
+    """Raises time_out if time expires or expected exception not thrown."""
+    def cb_timeout(signum, frame):
+        raise TimeoutError("Time out after waiting " + str(time) + " seconds.")
+
+    def return_method(func):
+        """Turns function into decorated function."""
+        @wraps(func)
+        def new_method(*kargs, **kwargs):
+            previous_handler = signal.signal(signal.SIGALRM, cb_timeout)
+            try:
+                signal.alarm(time)
+                return func(*kargs, **kwargs)
+            except (exception_type_tuple):
+                pass  # This is what we want
             finally:
                 signal.alarm(0)
                 signal.signal(signal.SIGALRM, previous_handler)

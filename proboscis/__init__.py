@@ -377,7 +377,7 @@ def register(**kwargs):
 def test(home=None, **kwargs):
     """Put this on a test class to cause Proboscis to run it. """
     if home:
-        return DEFAULT_REGISTRY.register(home)
+        return DEFAULT_REGISTRY.register(home, **kwargs)
     else:
         def cb_method(home_2):
             return DEFAULT_REGISTRY.register(home_2, **kwargs)
@@ -386,24 +386,14 @@ def test(home=None, **kwargs):
 
 def before_class(home=None, **kwargs):
     """Like @test but indicates this should run before other class methods."""
-    if home:
-        return DEFAULT_REGISTRY.register(home, run_before_class=True)
-    else:
-        def cb_method(home_2):
-            return DEFAULT_REGISTRY.register(home_2, run_before_class=True,
-                                             **kwargs)
-        return cb_method
+    kwargs.update({'run_before_class':True})
+    return test(home=None, **kwargs)
 
 
 def after_class(home=None, **kwargs):
     """Like @test but indicates this should run before other class methods."""
-    if home:
-        return DEFAULT_REGISTRY.register(home, run_after_class=True)
-    else:
-        def cb_method(home_2):
-            return DEFAULT_REGISTRY.register(home_2, run_after_class=True,
-                                             **kwargs)
-        return cb_method
+    kwargs.update({'run_after_class':True})
+    return test(home=None, **kwargs)
 
 
 def factory(func=None, **kwargs):
