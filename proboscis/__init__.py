@@ -27,7 +27,10 @@ import os
 import sys
 import types
 import unittest
-from nose import core
+
+
+from proboscis import dependencies
+
 
 # This is here so Proboscis own test harness can change it while still calling
 # TestProgram normally. Its how the examples are tested.
@@ -406,7 +409,7 @@ def factory(func=None, **kwargs):
         return cb_method
 
 
-class TestProgram(core.TestProgram):
+class TestProgram(dependencies.TestProgram):
     """The entry point of Proboscis.
 
     Creates the test suite and loaders before handing things off to Nose which
@@ -440,7 +443,7 @@ class TestProgram(core.TestProgram):
 
         if env is None:
             env = os.environ
-        if config is None:
+        if dependencies.use_nose and config is None:
             config = self.makeConfig(env, plugins)
             if not stream:
                 stream = config.stream
@@ -448,11 +451,15 @@ class TestProgram(core.TestProgram):
         stream = stream or sys.stdout
         
         if testRunner is None:
-            runner_cls = test_runner_cls(core.TextTestRunner,
+            runner_cls = test_runner_cls(dependencies.TextTestRunner,
                                          "ProboscisTestRunner")
-            testRunner = runner_cls(stream,
-                                    verbosity=3,  # config.verbosity,
-                                    config=config)
+            if dependencies.use_nose:
+                testRunner = runner_cls(stream,
+                                        verbosity=3,  # config.verbosity,
+                                        config=config)
+            else:
+                testRunner = runner_cls(stream, verbosity=3)
+                
         #registry.sort()
         self.plan = registry.get_test_plan()
         
@@ -465,17 +472,28 @@ class TestProgram(core.TestProgram):
             self.__suite = self.create_test_suite_from_entries(config,
                                                                self.cases)
             def run():
-                core.TestProgram.__init__(
-                    self,
-                    suite=self.__suite,
-                    config=config,
-                    env=env,
-                    plugins=plugins,
-                    testLoader=testLoader,  # Pass arg, not what we create
-                    testRunner=testRunner,
-                    argv=argv,
-                    *args, **kwargs
-                )
+                if dependencies.use_nose:
+                    dependencies.TestProgram.__init__(
+                        self,
+                        suite=self.__suite,
+                        config=config,
+                        env=env,
+                        plugins=plugins,
+                        testLoader=testLoader,  # Pass arg, not what we create
+                        testRunner=testRunner,
+                        argv=argv,
+                        *args, **kwargs
+                    )
+                else:
+                    dependencies.TestProgram.__init__(
+                        self,
+                        suite=self.__suite,
+                        config=config,
+                        testLoader=testLoader,  # Pass arg, not what we create
+                        testRunner=testRunner,
+                        argv=argv,
+                        *args, **kwargs
+                    )
             self.__run = run
 
     def create_test_suite_from_entries(self, config, cases):

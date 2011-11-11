@@ -2,7 +2,7 @@ import os
 import sys
 
 from abc import ABCMeta
-from nose.tools import assert_equal
+from proboscis.asserts import assert_equal
 from os.path import join
 
 import proboscis
@@ -51,11 +51,20 @@ def assert_failures_in_file(source_file, expected_failures):
     """Checks the output of Proboscis run for expected failures."""
     failures = FailureLines(expected_failures)
     # This isn't solid at all but works fine in the limited use cases.
-    for line in open(source_file, 'r'):
-        if "FAIL: " in line:
-            failures.add_actual(line[6:].strip())
-        elif "ERROR: " in line:
-            failures.add_actual(line[7:].strip())
+    if proboscis.dependencies.use_nose:
+        for line in open(source_file, 'r'):
+            if "FAIL: " in line:
+                failures.add_actual(line[6:].strip())
+            elif "ERROR: " in line:
+                failures.add_actual(line[7:].strip())
+    else:
+        error_next = False
+        for line in open(source_file, 'r'):
+            if error_next:
+                failures.add_actual(line.strip())
+            error_next = False
+            if "ERROR: " in line or "FAIL: " in line:
+                error_next = True
     failures.assert_all()
 
 

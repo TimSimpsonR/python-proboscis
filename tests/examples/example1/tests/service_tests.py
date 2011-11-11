@@ -1,8 +1,8 @@
 import unittest
 import mymodule
-from nose.tools import assert_equal
-from nose.tools import assert_false
-from nose.tools import assert_true
+from proboscis.asserts import assert_equal
+from proboscis.asserts import assert_false
+from proboscis.asserts import assert_true
 from proboscis import test
 
 service_config = {

@@ -1,5 +1,5 @@
 import unittest
-from nose.tools import assert_equals
+from proboscis.asserts import assert_equal
 from proboscis import test
 
 import utils
@@ -25,4 +25,4 @@ def test_reverse():
     original = "hello"
     expected = "olleh"
     actual = utils.reverse(original)
-    assert_equals(expected, actual)
+    assert_equal(expected, actual)

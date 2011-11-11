@@ -22,10 +22,10 @@ import types
 import unittest
 
 from collections import deque
-from nose import result
-from nose.plugins.skip import SkipTest
-from proboscis import TestMethodClassEntry
 
+
+from proboscis import TestMethodClassEntry
+from proboscis import dependencies
 from proboscis.decorators import decorate_class
 from proboscis.sorting import TestGraph
 
@@ -106,9 +106,12 @@ class TestPlan(object):
 
     def create_test_suite(self, config, loader):
         """Transforms the plan into a Nose test suite."""
-        from nose.suite import ContextSuiteFactory
         creator = TestSuiteCreator(loader)
-        suite = ContextSuiteFactory(config)([])
+        if dependencies.use_nose:
+            from nose.suite import ContextSuiteFactory
+            suite = ContextSuiteFactory(config)([])
+        else:
+            suite = unittest.TestSuite()
         for case in self.tests:
             if case.entry.info.enabled and case.entry.home is not None:
                 tests = creator.loadTestsFromTestEntry(case)
@@ -157,12 +160,12 @@ class TestCase(object):
         self.dependency_failure = None
         self.state = state
 
-    def check_dependencies(self):
+    def check_dependencies(self, test_self):
         """If a dependency has failed, SkipTest is raised."""
         if self.dependency_failure is not None and \
            self.dependency_failure != self and not self.entry.info.always_run:
             home = self.dependency_failure.entry.home
-            raise SkipTest("Failure in %s" % home)
+            dependencies.skip_test(test_self, "Failure in %s" % home)
 
     def fail_test(self, dependency_failure=None):
         """Called when this entry fails to notify dependents."""
@@ -206,21 +209,25 @@ class TestResultListener():
 
     def onError(self, test):
         """Notify a test entry and its dependents of failure."""
-        if hasattr(test.test, "__proboscis_case__"):
-            case = test.test.__proboscis_case__
+        if dependencies.use_nose:
+            root = test.test
+        else:
+            root = test
+        if hasattr(root, "__proboscis_case__"):
+            case = root.__proboscis_case__
             case.fail_test()
 
 
 
-class TestResult(TestResultListener, result.TextTestResult):
+class TestResult(TestResultListener, dependencies.TextTestResult):
     """Mixes TestResultListener with nose's TextTestResult class."""
 
     # I had issues extending TextTestResult directly so resorted to this.
 
     def __init__(self, stream, descriptions, verbosity, config=None,
                  errorClasses=None):
-        TestResultListener.__init__(self, result.TextTestResult)
-        result.TextTestResult.__init__(self, stream, descriptions, verbosity,
+        TestResultListener.__init__(self, dependencies.TextTestResult)
+        dependencies.TextTestResult.__init__(self, stream, descriptions, verbosity,
                                        config, errorClasses)
 
 
@@ -243,8 +250,8 @@ class FunctionTest(unittest.FunctionTestCase):
         _old_setup = None
         if hasattr(func, 'setup'):  # Don't destroy nose-style setup
             _old_setup = func.setup
-        def cb_check(self=None):
-            test_case.check_dependencies()
+        def cb_check(cb_self=None):
+            test_case.check_dependencies(self)
             if _old_setup is not None:
                 _old_setup()
         self.__proboscis_case__ = test_case
@@ -273,8 +280,8 @@ class MethodTest(unittest.FunctionTestCase):
         #TODO: Figure out how to attach calls to BeforeMethod and BeforeClass,
         #      AfterMethod and AfterClass. It should be easy enough to
         #      just find them using the TestEntry parent off test_case Entrty.
-        def cb_check(self=None):
-            test_case.check_dependencies()
+        def cb_check(cb_self=None):
+            test_case.check_dependencies(self)
         @wraps(test_case.entry.home)
         def func(self=None):  # Called by FunctionTestCase
             func = test_case.entry.home
@@ -316,8 +323,8 @@ class TestSuiteCreator(object):
 
     def wrap_unittest_test_case_class(self, test_case):
         original_cls = test_case.entry.home
-        def cb_check(self=None):
-            test_case.check_dependencies()
+        def cb_check(cb_self):
+            test_case.check_dependencies(cb_self)
         testCaseClass = decorate_class(setUp_method=cb_check)(original_cls)
         testCaseNames = self.loader.getTestCaseNames(testCaseClass)
         if not testCaseNames and hasattr(testCaseClass, 'runTest'):
