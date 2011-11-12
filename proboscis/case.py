@@ -15,7 +15,6 @@
 
 """Creates TestCases from a list of TestEntries."""
 
-import abc
 from functools import wraps
 import pydoc
 import types

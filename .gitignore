@@ -15,3 +15,4 @@ nova.egg-info
 .bzr*
 dist*
 proboscis.egg-info*
+*py.class

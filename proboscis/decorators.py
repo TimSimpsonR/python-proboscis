@@ -20,6 +20,7 @@ import signal
 from functools import wraps
 
 from proboscis.asserts import assert_raises_instance
+from proboscis import compatability
 
 
 def expect_exception(exception_type):
@@ -39,6 +40,9 @@ class TimeoutError(RuntimeError):
 
 def time_out(time):
     """Raises TimeoutError if the decorated method does not finish in time."""
+    if compatability.is_jython():
+        raise ImportError("Not supported.")
+
     def cb_timeout(signum, frame):
         raise TimeoutError("Time out after waiting " + str(time) + " seconds.")
 

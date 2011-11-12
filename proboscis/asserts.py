@@ -22,8 +22,10 @@ more Pythonic.
 """
 
 
+import sys
 import traceback
 
+from proboscis import compatability
 
 ASSERTION_ERROR=AssertionError
 
@@ -129,15 +131,14 @@ def assert_raises(exception_type, function, *args, **kwargs):
     The exact type of exception must be thrown.
 
     """
-    actual_exception = None
-    try:
-        function(*args, **kwargs)
-    except exception_type as e:
-        actual_exception = e
+    actual_exception = compatability.capture_exception(
+        lambda : function(*args, **kwargs),
+        exception_type)
     if actual_exception is None:
         fail("Expected an exception of type %s to be raised.")
     elif type(actual_exception) != exception_type:
-        info = traceback.format_exc()
+        _a, _b, tb = sys.exc_info()
+        info = traceback.format_list(traceback.extract_tb(tb))
         fail("Expected a raised exception of type %s, but found type %s. "
             "%s" % (exception_type, type(actual_exception), info))
 
@@ -148,11 +149,9 @@ def assert_raises_instance(exception_type, function, *args, **kwargs):
     The exception thrown must only be an instance of the given type.
 
     """
-    actual_exception = None
-    try:
-        function(*args, **kwargs)
-    except exception_type as e:
-        actual_exception = e
+    actual_exception = compatability.capture_exception(
+        lambda : function(*args, **kwargs),
+        exception_type)
     if actual_exception is None:
         fail("Expected an exception of type %s to be raised.")
 

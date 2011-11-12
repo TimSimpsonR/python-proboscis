@@ -15,12 +15,14 @@
 
 """Tests the internal logic of the proboscis module."""
 
+import imp
+import sys
 import time
 import unittest
 
-from nose import core
-from proboscis.asserts import assert_raises
 
+from proboscis.asserts import assert_raises
+from proboscis import compatability
 from proboscis.decorators import expect_exception
 from proboscis.decorators import time_out
 from proboscis.decorators import TimeoutError
@@ -162,11 +164,11 @@ class TestTopologicalSort(unittest.TestCase):
                           depends_on_classes=[N5, N7])
         cases = TestPlan.create_cases(registry.tests, [])
         graph = TestGraph(registry.groups, registry.tests, cases)
-        try:
-            result = graph.sort()
-            self.fail("A cycle has escaped us.")
-        except RuntimeError as re:
-            self.assertTrue(str(re).find("Cycle found") >= 0)
+
+        re = compatability.capture_exception(graph.sort, RuntimeError)
+        self.assertTrue(re is not None)
+        self.assertTrue(isinstance(re, RuntimeError))
+        self.assertTrue(str(re).find("Cycle found") >= 0)
 
 class TestModuleConversionToNodes(unittest.TestCase):
 
@@ -177,7 +179,7 @@ class TestModuleConversionToNodes(unittest.TestCase):
         
         old_default_registry = proboscis.DEFAULT_REGISTRY
         proboscis.DEFAULT_REGISTRY = TestRegistry()
-        reload(proboscis_example)
+        compatability.reload(proboscis_example)
         self.registry = proboscis.DEFAULT_REGISTRY
         proboscis.default_registry = old_default_registry
         self.plan = self.registry.get_test_plan()
@@ -187,7 +189,7 @@ class TestModuleConversionToNodes(unittest.TestCase):
 
     def test_startup_must_be_first(self):
         from proboscis_example import StartUp
-        self.assertEquals(StartUp, self.plan.tests[0].entry.home)
+        self.assertEqual(StartUp, self.plan.tests[0].entry.home)
 
     def test_filter_with_one(self):
         self.plan.filter(group_names=["init"])
@@ -214,7 +216,7 @@ class TestModuleConversionToNodes(unittest.TestCase):
         filtered = self.plan.tests
         # Should include RandomTestOne, which depends on RandomTestZero,
         # which depends on init
-        self.assertEquals(3, len(filtered))
+        self.assertEqual(3, len(filtered))
         from proboscis_example import StartUp
         self.assertEqual(StartUp, filtered[0].entry.home)
         from proboscis_example import RandomTestZero
@@ -222,27 +224,29 @@ class TestModuleConversionToNodes(unittest.TestCase):
         self.assertEqual(RandomTestOne, filtered[2].entry.home)
 
 
-@time_out(2)
-def lackadaisical_multiply(a, b):
-    sum = 0
-    for i in range(0, b):
-        time.sleep(1)
-        sum = sum + a
-    return sum
+if not compatability.is_jython():
+    
+    @time_out(2)
+    def lackadaisical_multiply(a, b):
+        sum = 0
+        for i in range(0, b):
+            time.sleep(1)
+            sum = sum + a
+        return sum
 
 
-class TestTimeoutDecorator(unittest.TestCase):
+    class TestTimeoutDecorator(unittest.TestCase):
 
-    def test_should_not_time_out_before_time_exceeded(self):
-        self.assertEqual(0, lackadaisical_multiply(4, 0))
-        self.assertEqual(8, lackadaisical_multiply(8, 1))
+        def test_should_not_time_out_before_time_exceeded(self):
+            self.assertEqual(0, lackadaisical_multiply(4, 0))
+            self.assertEqual(8, lackadaisical_multiply(8, 1))
 
-    def test_should_timeout_if_time_exceeded(self):
-        try:
-            self.assertEqual(8 * 8, lackadaisical_multiply(8, 8))
-            self.fail("time_out decorator did not work.")
-        except TimeoutError:
-            pass
+        def test_should_timeout_if_time_exceeded(self):
+            try:
+                self.assertEqual(8 * 8, lackadaisical_multiply(8, 8))
+                self.fail("time_out decorator did not work.")
+            except TimeoutError:
+                pass
 
 class MockCase(object):
 
@@ -338,4 +342,10 @@ class TestMethodMarker(unittest.TestCase):
                 self.a = 55
 
         self.assertTrue(hasattr(Example.something, '_proboscis_entry_'))
-        self.assertTrue(hasattr(Example.something.im_func, '_proboscis_entry_'))
+        if sys.version_info < (3,0):
+            self.assertTrue(hasattr(Example.something.im_func,
+                                    '_proboscis_entry_'))
+
+
+if __name__ == "__main__":
+    unittest.TestProgram()

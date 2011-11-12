@@ -42,7 +42,7 @@ setup(
         'Programming Language :: Python',
     ],
     py_modules=[],
-    packages=['proboscis'],
+    packages=['proboscis', 'proboscis.compatability'],
     scripts=[],
     tests_require=["nose"],
     test_suite="nose.collector"

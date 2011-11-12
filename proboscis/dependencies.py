@@ -36,11 +36,18 @@ except ImportError:
             test_self.skipTest(message)
         except AttributeError:
             raise AssertionError("SKIPPED:%s" % message)
-
     class TestProgram(unittest.TestProgram):
+
         def __init__(self, suite, config=None, *args, **kwargs):
             self.suite_arg = suite
+
+            class StubLoader(object):
+                def loadTestsFromModule(*args, **kwargs):
+                    return self.suite_arg
+
             self.test = suite
+            if 'testLoader' not in kwargs or kwargs['testLoader'] is None:
+                kwargs['testLoader'] = StubLoader()
             super(TestProgram, self).__init__(*args, **kwargs)
 
         def createTests(self):
