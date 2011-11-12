@@ -14,23 +14,21 @@
 #    under the License.
 
 try:
-    global use_nose
-    use_nose = True
-
     from nose.plugins.skip import SkipTest
     from nose.core import TestProgram
     from nose.core import TextTestResult
     from nose.core import TextTestRunner
+    
+    use_nose = True
 
     def skip_test(test_self, message):
         raise SkipTest(message)
 
 except ImportError:
-    global use_nose
-    use_nose = False
-
     import unittest
     from unittest import TextTestRunner
+
+    use_nose = False
 
     # In 2.7 unittest.TestCase has a skipTest method.
     def skip_test(test_self, message):
