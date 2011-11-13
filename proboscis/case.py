@@ -253,7 +253,7 @@ def skippable_func(test_case, func):
     """
     s_func = None
     if dependencies.use_nose:
-        f = func
+        s_func = func
     else:
         @wraps(func)
         def skip_capture_func():

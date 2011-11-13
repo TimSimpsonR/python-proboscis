@@ -29,3 +29,6 @@ def capture_type_error(func):
            and "(0 given)" in te.message:
             import proboscis
             raise proboscis.ProboscisTestMethodClassNotDecorated()
+        else:
+            raise
+        

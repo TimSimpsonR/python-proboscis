@@ -109,7 +109,7 @@ class TestEntryInfo:
         self.depends_on = set(transform_depends_on_target(target)
                               for target in depends_on_list)
         for cls in depends_on_classes:
-            depends_on_list.add(cls)
+            self.depends_on.add(cls)
         self.depends_on_groups = depends_on_groups
         self.enabled = enabled
         self.always_run = always_run
@@ -183,6 +183,8 @@ class TestEntry(object):
         for cls in classes:
             if cls == self.home:
                 return True
+        if hasattr(self, 'parent'):
+            return self.parent.contains_shallow(group_names, classes)
         return False
 
     @property
@@ -249,12 +251,15 @@ class TestMethodClassEntry(TestEntry):
 
     def contains(self, group_names, classes):
         """True if this belongs to any of the given groups or classes."""
-        if super(TestMethodClassEntry, self).contains(group_names, classes):
+        if contains_shallow(group_names, classes):
             return True
         for entry in self.children:
             if entry.contains(group_names, classes):
                 return True
         return False
+
+    def contains_shallow(self, group_names, classes):
+        return super(TestMethodClassEntry, self).contains(group_names, classes)
 
 
 from proboscis.case import TestPlan
