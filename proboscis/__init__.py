@@ -37,6 +37,35 @@ from proboscis import dependencies
 OVERRIDE_DEFAULT_STREAM = None
 
 
+if dependencies.use_nose:
+    from nose import SkipTest
+else:
+    class SkipTest(Exception):
+        def __init__(self, message):
+            super(SkipTest, self).__init__(self, message)
+            self.message = message
+
+        def __str__(self):
+            return self.message
+
+
+class ProboscisTestMethodClassNotDecorated(Exception):
+    """
+    
+    This denotes a very common error that seems somewhat unavoidable due to
+    the fact it isn't possible to know if a method is bound or not in Python
+    when you decorate it.
+    
+    """
+
+    def __init__(self):
+        super(Exception, self).__init__(self,
+            "Proboscis attempted to run what looks like a bound method "
+            "requiring a self argument as a free-standing function. Did you "
+            "forget to put a @test decorator on the method's class?")
+
+
+
 class TestGroup(object):
     """Represents a group of tests.
 
@@ -53,6 +82,13 @@ class TestGroup(object):
         self.entries.append(entry)
 
 
+def transform_depends_on_target(target):
+    if isinstance(target, types.MethodType):
+        return target.im_func
+    else:
+        return target
+
+
 class TestEntryInfo:
     """Represents metadata attached to some kind of test code."""
 
@@ -66,19 +102,21 @@ class TestEntryInfo:
                  run_before_class=False,
                  run_after_class=False):
         groups = groups or []
-        depends_on = set(depends_on or [])
+        depends_on_list = depends_on or []
         depends_on_classes = depends_on_classes or []
-        for cls in depends_on_classes:
-            depends_on.add(cls)
         depends_on_groups = depends_on_groups or []
         self.groups = groups
-        self.depends_on = depends_on
+        self.depends_on = set(transform_depends_on_target(target)
+                              for target in depends_on_list)
+        for cls in depends_on_classes:
+            depends_on_list.add(cls)
         self.depends_on_groups = depends_on_groups
         self.enabled = enabled
         self.always_run = always_run
         self.inherit_groups = False
         self.before_class = run_before_class
         self.after_class = run_after_class
+
         if run_before_class and run_after_class:
             raise RuntimeError("It is illegal to set 'before_class' and "
                                "'after_class' to True.")
@@ -390,13 +428,13 @@ def test(home=None, **kwargs):
 def before_class(home=None, **kwargs):
     """Like @test but indicates this should run before other class methods."""
     kwargs.update({'run_before_class':True})
-    return test(home=None, **kwargs)
+    return test(home=home, **kwargs)
 
 
 def after_class(home=None, **kwargs):
     """Like @test but indicates this should run before other class methods."""
     kwargs.update({'run_after_class':True})
-    return test(home=None, **kwargs)
+    return test(home=home, **kwargs)
 
 
 def factory(func=None, **kwargs):
@@ -407,6 +445,7 @@ def factory(func=None, **kwargs):
         def cb_method(func_2):
             return DEFAULT_REGISTRY.register_factory(func_2, **kwargs)
         return cb_method
+
 
 
 class TestProgram(dependencies.TestProgram):

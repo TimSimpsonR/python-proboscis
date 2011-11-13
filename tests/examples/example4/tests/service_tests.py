@@ -52,15 +52,13 @@ def initialize_web_server():
 
 class UserTests(object):
 
-    def __init__(self, user_type):
-        self.expected_user_type = user_type
-        
-    def generate_new_user_config(self):
+    @staticmethod
+    def generate_new_user_config():
         """Constructs the dictionary needed to make a new user."""
         new_user_config = {
             "username": "TEST_%s_%s" % (datetime.now(), random.randint(0, 256)),
             "password": "password",
-            "type":self.expected_user_type
+            "type":"normal"
         }
         return new_user_config
 
@@ -104,28 +102,20 @@ class UserTests(object):
         assert_equal("spam.jpg", self.client.get_profile_image())
 
 
-    @test(depends_on=[successful_login])
-    def create_users(self):
+@test(groups=["user", "service.tests"])
+class NormalUserTests(UserTests):
+
+    @test(depends_on=[UserTests.successful_login])
+    def a_normal_user_cant_create_users(self):
         """Make sure the given client cannot perform admin actions.."""
-        if self.expected_user_type == 'normal':
-            assert_raises(mymodule.AuthException, self.client.create_user,
-                          self.generate_new_user_config())
-        else:
+        assert_raises(mymodule.AuthException, self.client.create_user,
+                      self.generate_new_user_config())
 
-
-    @test(depends_on=[successful_login])
-    def delete_users(self):
+    @test(depends_on=[UserTests.successful_login])
+    def a_normal_user_cant_delete_users(self):
         """Make sure the given client cannot perform admin actions.."""
         assert_raises(mymodule.AuthException, self.client.delete_user,
                       self.test_user.id)
-
-
-
-@factory
-def generate_user_tests():
-    return [ClientTest(config) for config in service_configs]
-
-
 
 
 

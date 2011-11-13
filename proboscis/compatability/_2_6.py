@@ -16,6 +16,16 @@
 def capture_exception(body_func, except_type):
     try:
         body_func()
+        return None
     except except_type as e:
         return e
 
+
+def capture_type_error(func):
+    try:
+        func()
+    except TypeError as te:
+        if "takes exactly 1 argument" in te.message \
+           and "(0 given)" in te.message:
+            import proboscis
+            raise proboscis.ProboscisTestMethodClassNotDecorated()

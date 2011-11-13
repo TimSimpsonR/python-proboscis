@@ -12,12 +12,12 @@
       under the License.
 
 .. include:: ../../README
-   :end-line: 21
+   :end-line: 32
 
 .. toctree::
    :maxdepth: 5
 
-   usage
+   tutorial
    download
    pydocs
 

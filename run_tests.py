@@ -1,3 +1,23 @@
+"""
+
+This mess runs the documentation examples to make sure they actually work.
+It isn't easy because it has to use Python's reload mechanics since Proboscis
+isn't currently designed to be run multiple times.
+
+The tests run here can be run more easily from the command line by entering
+into the various subdirectories of tests/examples and running the following
+commands in Linux (its basically the same in Windows with the usual changes):
+
+    Python:
+        PYTHONPATH=../../../ python run_tests.py
+    Jython:
+        JYTHONPATH=../../../ jython run_tests.py
+
+
+These are basically the higher order tests for Proboscis. Some unit tests
+are in tests/proboscis_test.py.
+
+"""
 import os
 import sys
 
@@ -15,10 +35,30 @@ def make_dirs(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
 
+
+def reload_proboscis():
+    """
+    Reloading Proboscis like this causes problems- for instance,
+    exceptions aren't caught because the exception to be caught is a
+    an earlier version of the reloaded doppleganger that is thrown.
+    """
+    reload(proboscis)
+    def new_cap_ex(body_func, except_type):
+        try:
+            body_func()
+            return None
+        except Exception as e:
+            if (str(type(e)) == str(except_type)):
+                return e
+            else:
+                raise
+    proboscis.compatability.capture_exception = new_cap_ex
+
 class FailureLines(object):
     """Tallies expected and actual occurrences of lines in output."""
 
-    def __init__(self, lines):
+    def __init__(self, source_file, lines):
+        self.source_file = source_file
         self.failures = {}
         for line in lines:
             self.add_expected(line)
@@ -37,9 +77,10 @@ class FailureLines(object):
         info = self.get(line)
         assert_equal(str(info["expected"]).strip(),
                      str(info["actual"]).strip(),
-                "Expected to see failure for \"%s\" %d time(s) but saw it "
-                "%d time(s).  Additional info for this test: %s" %
-                (line, info["expected"], info["actual"], str(self.failures)))
+                "In %s, expected to see failure for \"%s\" %d time(s) but saw "
+                "it %d time(s).  Additional info for this test: %s" %
+                (self.source_file, line, info["expected"], info["actual"],
+                 str(self.failures)))
 
     def get(self, line):
         if line not in self.failures:
@@ -49,7 +90,7 @@ class FailureLines(object):
 
 def assert_failures_in_file(source_file, expected_failures):
     """Checks the output of Proboscis run for expected failures."""
-    failures = FailureLines(expected_failures)
+    failures = FailureLines(source_file, expected_failures)
     # This isn't solid at all but works fine in the limited use cases.
     if proboscis.dependencies.use_nose:
         for line in open(source_file, 'r'):
@@ -104,7 +145,7 @@ class ExampleRunner(object):
             sys.argv.append(self.test.source_files[0])
         for arg in args:
             sys.argv.append(arg)
-        reload(proboscis)
+        reload_proboscis()
 
     def create_rst_from_source(self):
         make_dirs(self.rst_directory)
@@ -209,7 +250,7 @@ class Example1(object):
         {
             "args":[],
             "failures":[
-                "Start up web server then issue a connect to make sure its up."]
+                "Creates a local database and starts up the web service."]
         }
     ]
 
@@ -231,6 +272,18 @@ class Example2(Example1):
 
     base_directory="example2"
 
+    runs = [
+        {
+            "args":[],
+            "failures":[]
+        },
+        {
+            "args":[],
+            "failures":[
+                "Starts up the web service."]
+        }
+    ]
+
     source_files = ["run_tests.py",
                     join("tests", "service_tests.py")]
 
@@ -244,6 +297,70 @@ class Example2(Example1):
         example2_run.run_tests()
 
 
+class Example3(Example1):
+
+    base_directory="example3"
+
+    runs = [
+        {
+            "args":[],
+            "failures":[]
+        },
+        {
+            "args":[],
+            "failures":[
+                "Create a user."]
+        }
+    ]
+
+    source_files = ["run_tests.py",
+                    join("tests", "service_tests.py")]
+
+    def run(self, index):
+        from tests.examples import example2
+        sys.path.append(example2.__path__[0])
+        if index == 1:
+            def return_nadda(*args):
+                return None
+            import mymodule
+            mymodule.UserServiceClient.create_user = return_nadda
+        from tests.examples.example3 import run_tests as example3_run
+        example3_run.run_tests()
+
+
+class Example4(Example1):
+
+    base_directory="example4"
+
+    runs = [
+        {
+            "args":[],
+            "failures":[]
+        },
+        {
+            "args":[],
+            "failures":[
+                "Create a user.",
+                "Create a user."]
+        }
+    ]
+
+    source_files = ["run_tests.py",
+                    join("tests", "service_tests.py")]
+
+    def run(self, index):
+        from tests.examples import example2
+        sys.path.append(example2.__path__[0])
+        if index == 1:
+            def return_nadda(*args):
+                return None
+            import mymodule
+            mymodule.UserServiceClient.create_user = return_nadda
+        from tests.examples.example4 import run_tests as example4_run
+        example4_run.run_tests()
+
+
+
 
 def run_all(root="."):
     if not os.path.exists(join(root, "docs")) or \
@@ -253,6 +370,8 @@ def run_all(root="."):
     ExampleRunner(root, UnitTestExample())
     ExampleRunner(root, Example1())
     ExampleRunner(root, Example2())
+    ExampleRunner(root, Example3())
+    ExampleRunner(root, Example4())
 
 if __name__ == '__main__':
     run_all()

@@ -18,8 +18,10 @@ import sys
 
 if sys.version_info >= (2, 6):
     from proboscis.compatability._2_6 import capture_exception
+    from proboscis.compatability._2_6 import capture_type_error
 else:
     from proboscis.compatability._2_5 import capture_exception
+    from proboscis.compatability._2_5 import capture_type_error
 
 
 if sys.version_info >= (3, 0):

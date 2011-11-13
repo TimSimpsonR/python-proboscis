@@ -13,9 +13,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-def capture_exception(body_func, except_type):
+def capture_exception(body_func, *except_type):
     try:
         body_func()
         return None
     except except_type, e:
         return e
+
+
+def capture_type_error(func):
+    try:
+        func()
+    except TypeError, te:
+        if "takes exactly 1 argument" in te.message \
+           and "(0 given)" in te.message:
+            import proboscis
+            raise proboscis.ProboscisTestMethodClassNotDecorated()

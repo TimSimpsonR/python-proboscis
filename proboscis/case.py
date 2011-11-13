@@ -24,7 +24,9 @@ from collections import deque
 
 
 from proboscis import TestMethodClassEntry
+from proboscis import compatability
 from proboscis import dependencies
+from proboscis import SkipTest
 from proboscis.decorators import decorate_class
 from proboscis.sorting import TestGraph
 
@@ -240,6 +242,32 @@ def test_runner_cls(wrapped_cls, cls_name):
     return type(cls_name, (wrapped_cls,), new_dict)
 
 
+def skippable_func(test_case, func):
+    """Gives free functions a Nose independent way of skipping a test.
+
+    The unittest module TestCase class has a skipTest method, but to run it you
+    need access to the TestCase class. This wraps the runTest method of the
+    underlying unittest.TestCase subclass to invoke the skipTest method if it
+    catches the SkipTest exception.
+
+    """
+    s_func = None
+    if dependencies.use_nose:
+        f = func
+    else:
+        @wraps(func)
+        def skip_capture_func():
+            st = compatability.capture_exception(func, SkipTest)
+            if st is not None:
+                dependencies.skip_test(test_case, st.message)
+        s_func = skip_capture_func
+
+    @wraps(func)
+    def testng_method_mistake_capture_func():
+        compatability.capture_type_error(s_func)
+
+    return testng_method_mistake_capture_func
+
 
 class FunctionTest(unittest.FunctionTestCase):
     """Wraps a single function as a test runnable by unittest / nose."""
@@ -254,7 +282,8 @@ class FunctionTest(unittest.FunctionTestCase):
             if _old_setup is not None:
                 _old_setup()
         self.__proboscis_case__ = test_case
-        unittest.FunctionTestCase.__init__(self, testFunc=func, setUp=cb_check)
+        sfunc = skippable_func(self, func)
+        unittest.FunctionTestCase.__init__(self, testFunc=sfunc, setUp=cb_check)
 
 
 class TestMethodState(object):
@@ -262,7 +291,12 @@ class TestMethodState(object):
 
     def __init__(self, entry, instance=None):
         self.entry = entry
-        assert isinstance(self.entry, TestMethodClassEntry)
+        # This would be a simple "isinstance" but due to the reloading mania
+        # needed for Proboscis's documentation tests it has to be a bit
+        # weirder.
+        if not str(type(self.entry)) == str(TestMethodClassEntry):
+            raise RuntimeError("%s is not a TestMethodClassEntry but is a %s."
+                               % (self.entry, type(self.entry)))
         self.instance = instance
 
     def get_state(self):
@@ -286,7 +320,8 @@ class MethodTest(unittest.FunctionTestCase):
             func = test_case.entry.home
             func(test_case.state.get_state())
         self.__proboscis_case__ = test_case
-        unittest.FunctionTestCase.__init__(self, testFunc=func, setUp=cb_check)
+        sfunc = skippable_func(self, func)
+        unittest.FunctionTestCase.__init__(self, testFunc=sfunc, setUp=cb_check)
 
 
 class TestSuiteCreator(object):

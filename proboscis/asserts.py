@@ -135,7 +135,7 @@ def assert_raises(exception_type, function, *args, **kwargs):
         lambda : function(*args, **kwargs),
         exception_type)
     if actual_exception is None:
-        fail("Expected an exception of type %s to be raised.")
+        fail("Expected an exception of type %s to be raised." % exception_type)
     elif type(actual_exception) != exception_type:
         _a, _b, tb = sys.exc_info()
         info = traceback.format_list(traceback.extract_tb(tb))

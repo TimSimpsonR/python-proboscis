@@ -1,14 +1,35 @@
+import random
 
 database = None
 web_server = None
 
+class AuthException(Exception):
+    pass
+
+class UserNotFoundException(Exception):
+    pass
+
+
 def create_database():
     global database
-    database = {}
+    database = { 'users':{} }
 
 def destroy_database():
     global database
     database = None
+
+
+def get_admin_client():
+    return UserServiceClient(0, { 'username':"admin", 'password':None })
+
+def login(user_settings):
+    for user in database['users'].values():
+        if user.username == user_settings['username']:
+            if user.password != user_settings['password']:
+                raise UserNotFoundException()
+            else:
+                return user
+    raise UserNotFoundException()
 
 def reverse(string):
     """Reverses a string."""
@@ -37,23 +58,44 @@ def tables_exist():
     return database != None
 
 
-class ServiceClient(object):
+class UserServiceClient(object):
 
     ADMIN = "admin"
     NOBODY = "nobody"
 
-    def __init__(self, settings):
-        self.user_name = settings["user_name"]
+    def __init__(self, id, settings):
+        self.id = id
+        self.username = settings['username']
+        self.password = settings['password']
 
     @property
     def check_credentials(self):
-        return web_server[self.user_name]["credentials"]
+        return web_server[self.username]["credentials"]
+
+    def create_user(self, settings):
+        if self.id != 0:
+            raise AuthException("Must be an Admin to perform this function.")
+        random.seed()
+        id = random.randint(1, 1000)
+        settings['id'] = id
+        user = UserServiceClient(id, settings)
+        database['users'][id] = user
+        web_server[user.username] = {'image':"default.jpg"}
+        return user
+
+    def delete_user(self, id):
+        if self.id != 0:
+           raise AuthException("Must be an Admin to perform this function.")
+        if id not in database['users']:
+            raise UserNotFoundException()
+        del database['users'][id]
+
 
     def get_profile_image(self):
-        return web_server[self.user_name]["image"]
+        return web_server[self.username]["image"]
 
     def set_profile_image(self, new_value):
-        web_server[self.user_name]["image"] = new_value
+        web_server[self.username]["image"] = new_value
 
     def service_is_up(self):
         return web_server != None
