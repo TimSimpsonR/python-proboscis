@@ -153,7 +153,7 @@ def assert_raises_instance(exception_type, function, *args, **kwargs):
         lambda : function(*args, **kwargs),
         exception_type)
     if actual_exception is None:
-        fail("Expected an exception of type %s to be raised.")
+        fail("Expected an exception of type %s to be raised." % exception_type)
 
 
 def fail(message=None):
