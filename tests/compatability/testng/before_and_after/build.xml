@@ -1,0 +1,25 @@
+<project name="BeforeAndAfter" basedir="." default="test">
+  <taskdef name="testng"
+           classname="org.testng.TestNGAntTask" />
+
+  <path id="cp">
+    <pathelement path="build/classes"/>
+  </path>
+
+  <target name="clean">
+    <delete dir="build"/>
+  </target>
+
+  <target name="compile">
+    <mkdir dir="build/classes"/>
+    <javac srcdir="src/java" destdir="build/classes"/>
+  </target>
+
+  <target name="test" depends="compile">
+    <testng classpathref="cp" groups="BeforeAndAfter">
+      <classfileset dir="build/classes" includes="**/*.class"/>
+     <!--  <xmlfileset dir="" includes="testng.xml"/> -->
+    </testng>
+  </target>
+
+</project>
