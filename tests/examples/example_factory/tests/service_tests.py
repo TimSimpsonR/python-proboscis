@@ -54,7 +54,7 @@ class UserTests(object):
 
     def __init__(self, user_type):
         self.expected_user_type = user_type
-        
+
     def generate_new_user_config(self):
         """Constructs the dictionary needed to make a new user."""
         new_user_config = {
@@ -111,6 +111,7 @@ class UserTests(object):
             assert_raises(mymodule.AuthException, self.client.create_user,
                           self.generate_new_user_config())
         else:
+            pass
 
 
     @test(depends_on=[successful_login])
@@ -168,4 +169,4 @@ def shut_down():
         mymodule.stop_web_server()
         assert_false(admin.service_is_up())
     mymodule.destroy_database()
-    
+

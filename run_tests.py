@@ -126,8 +126,24 @@ def create_rst(block_type, source_file, rst_file):
                 output.write("    " + line)
 
 class ExampleRunner(object):
+    """Runs an example folder as if Python was executed from that directory.
+
+    Also converts all source code into .rst files which can be easily consumed
+    by the docs. In order to act as if Python was executed from a different
+    directory, it has to do nasty things to the path. In order to run through
+    Proboscis (and especially unittest.TestProgram, which Proboscis and Nose
+    call) multiple times it has to muck with the modules dictionary.
+
+    """
 
     def __init__(self, root, test):
+        """
+        Runs an example, which contains a base_directory relative to
+        tests/examples, a list of source files in that directory (for .rst
+        conversion) and a series of elements describing the different ways to
+        "run" the example (this is to show examples of how to invoke Proboscis
+        in the docs).
+        """
         self.test = test
         self.base_directory = join(root, "docs", "build", "examples",
                                    test.base_directory)
@@ -148,6 +164,10 @@ class ExampleRunner(object):
         reload_proboscis()
 
     def create_rst_from_source(self):
+        """
+        Copies the source files from a directory to .rst equiveaents in another
+        directory.
+        """
         make_dirs(self.rst_directory)
         for file_name in self.test.source_files:
             source_rel_path = join(self.test.base_directory, file_name)
@@ -163,6 +183,20 @@ class ExampleRunner(object):
                 del sys.modules[name]
 
     def run(self, run_info, index):
+        """Manipulates various global variables before running a test.
+
+        Of course it would be nicer to not use global variables and Proboscis
+        even has facilities for this, but since the examples are written to use
+        globals (for example most large test suites would use the default test
+        registry via the @test decorator) its better to make the examples
+        simpler at the expense of needing this code.
+
+        Captures std out, changes the sys argv list to match the "args" field
+        of the run information, then runs a test before asserting that the
+        output was as expected. It mucks with proboscis's default registry (a global
+        variable provided for convience that is used by the examples) and the
+        Python module dictionry.
+        """
         output_file_name = "output%d" % index
         self.alter_argv(run_info["args"])
         output_directory = join(self.base_directory, "output")
@@ -183,10 +217,10 @@ class ExampleRunner(object):
         for arg in sys.argv:
             fake_sh_output = fake_sh_output + " " + arg
         print(fake_sh_output + "\n\n")
-        proboscis.OVERRIDE_DEFAULT_STREAM = output
+        proboscis.case.OVERRIDE_DEFAULT_STREAM = output
         # Run the actual test, raise error if necessary.
         try:
-            proboscis.DEFAULT_REGISTRY.reset()
+            proboscis.decorators.DEFAULT_REGISTRY.reset()
             self.store_modules()
             self.test.run(index)
         finally:
@@ -262,6 +296,8 @@ class Example1(object):
         from tests.examples import example1
         sys.path.append(example1.__path__[0])
         if (index == 1):
+            # Change the code during this run to show what happens when the
+            # code is busted. This is for an unhappy path example in the docs.
             import mymodule
             mymodule.start_web_server = mymodule.bad_start_web_server
         from tests.examples.example1 import run_tests as example1_run
@@ -372,6 +408,7 @@ def run_all(root="."):
     ExampleRunner(root, Example2())
     ExampleRunner(root, Example3())
     ExampleRunner(root, Example4())
+
 
 if __name__ == '__main__':
     run_all()

@@ -13,22 +13,33 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Creates TestCases from a list of TestEntries."""
+"""Creates TestCases from a list of TestEntries.
 
-from functools import wraps
+This module mainly exists to translate Proboscis classes and concepts into the
+unittest equivalents.
+
+"""
+
+import os
 import pydoc
 import types
 import unittest
+import sys
 
 from collections import deque
+from functools import wraps
 
-
-from proboscis import TestMethodClassEntry
 from proboscis import compatability
 from proboscis import dependencies
 from proboscis import SkipTest
-from proboscis.decorators import decorate_class
 from proboscis.sorting import TestGraph
+from proboscis.core import TestMethodClassEntry
+from proboscis.decorators import DEFAULT_REGISTRY
+
+# This is here so Proboscis own test harness can change it while still calling
+# TestProgram normally. Its how the examples are tested.
+OVERRIDE_DEFAULT_STREAM = None
+
 
 class TestPlan(object):
     """Grabs information from the TestRegistry and creates a test plan."""
@@ -37,6 +48,11 @@ class TestPlan(object):
         test_cases = self.create_cases(test_entries, factories)
         graph = TestGraph(groups, test_entries, test_cases)
         self.tests = graph.sort()
+
+    @staticmethod
+    def create_from_registry(registry):
+        """Returns a sorted TestPlan from a TestRegistry instance."""
+        return TestPlan(registry.groups, registry.tests, registry.factories)
 
     @staticmethod
     def create_cases_from_instance(factory, instance):
@@ -324,6 +340,37 @@ class MethodTest(unittest.FunctionTestCase):
         unittest.FunctionTestCase.__init__(self, testFunc=sfunc, setUp=cb_check)
 
 
+def decorate_class(setUp_method=None, tearDown_method=None):
+    """Inserts method calls in the setUp / tearDown methods of a class."""
+    def return_method(cls):
+        """Returns decorated class."""
+        new_dict = cls.__dict__.copy()
+        if setUp_method:
+            if hasattr(cls, "setUp"):
+                @wraps(setUp_method)
+                def _setUp(self):
+                    setUp_method(self)
+                    cls.setUp(self)
+            else:
+                @wraps(setUp_method)
+                def _setUp(self):
+                    setUp_method(self)
+            new_dict["setUp"] = _setUp
+        if tearDown_method:
+            if hasattr(cls, "tearDown"):
+                @wraps(tearDown_method)
+                def _tearDown(self):
+                    tearDown_method(self)
+                    cls.setUp(self)
+            else:
+                @wraps(tearDown_method)
+                def _tearDown(self):
+                    tearDown_method(self)
+            new_dict["tearDown"] = _tearDown
+        return type(cls.__name__, (cls,), new_dict)
+    return return_method
+
+
 class TestSuiteCreator(object):
     """Turns Proboscis test cases into elements to be run by unittest."""
 
@@ -370,3 +417,122 @@ class TestSuiteCreator(object):
                 setattr(test_instance, "__proboscis_case__", test_case)
                 suite.append(test_instance)
         return suite
+
+
+class TestProgram(dependencies.TestProgram):
+    """The entry point of Proboscis.
+
+    Creates the test suite and loaders before handing things off to Nose which
+    runs as usual.
+
+    """
+    def __init__(self,
+                 registry=DEFAULT_REGISTRY,
+                 classes=None,
+                 groups=None,
+                 testLoader=None,
+                 config=None,
+                 plugins=None,
+                 env=None,
+                 testRunner=None,
+                 stream=None,
+                 argv=None,
+                 *args, **kwargs):
+        classes = classes or []
+        groups = groups or []
+        argv = argv or sys.argv
+        argv = self.extract_groups_from_argv(argv, groups)
+        if "suite" in kwargs:
+            raise ValueError("'suite' is not a valid argument, as Proboscis " \
+                             "creates the suite.")
+
+        self.__loader = testLoader or unittest.TestLoader()
+
+        if OVERRIDE_DEFAULT_STREAM:
+            stream = OVERRIDE_DEFAULT_STREAM
+
+        if env is None:
+            env = os.environ
+        if dependencies.use_nose and config is None:
+            config = self.makeConfig(env, plugins)
+            if not stream:
+                stream = config.stream
+
+        stream = stream or sys.stdout
+
+        if testRunner is None:
+            runner_cls = test_runner_cls(dependencies.TextTestRunner,
+                                         "ProboscisTestRunner")
+            if dependencies.use_nose:
+                testRunner = runner_cls(stream,
+                                        verbosity=3,  # config.verbosity,
+                                        config=config)
+            else:
+                testRunner = runner_cls(stream, verbosity=3)
+
+        #registry.sort()
+        self.plan = TestPlan.create_from_registry(registry)
+
+        if len(groups) > 0:
+            self.plan.filter(group_names=groups)
+        self.cases = self.plan.tests
+        if "--show-plan" in argv:
+            self.__run = self.show_plan
+        else:
+            self.__suite = self.create_test_suite_from_entries(config,
+                                                               self.cases)
+            def run():
+                if dependencies.use_nose:
+                    dependencies.TestProgram.__init__(
+                        self,
+                        suite=self.__suite,
+                        config=config,
+                        env=env,
+                        plugins=plugins,
+                        testLoader=testLoader,  # Pass arg, not what we create
+                        testRunner=testRunner,
+                        argv=argv,
+                        *args, **kwargs
+                    )
+                else:
+                    dependencies.TestProgram.__init__(
+                        self,
+                        suite=self.__suite,
+                        config=config,
+                        testLoader=testLoader,  # Pass arg, not what we create
+                        testRunner=testRunner,
+                        argv=argv,
+                        *args, **kwargs
+                    )
+            self.__run = run
+
+    def create_test_suite_from_entries(self, config, cases):
+        return self.plan.create_test_suite(config, self.__loader)
+
+    def extract_groups_from_argv(self, argv, groups):
+        """Find the group argument if it exists and extract it.
+
+        Nose will fail if we pass it an argument it doesn't know of, so this
+        function modifies argv.
+
+        """
+        new_argv = [argv[0]]
+        for arg in argv[1:]:
+            if arg[:8] == "--group=":
+                groups.append(arg[8:])
+            else:
+                new_argv.append(arg)
+        return new_argv
+
+    def run_and_exit(self):
+        self.__run()
+
+    def show_plan(self):
+        """Prints information on test entries and the order they will run."""
+        print("   *  *  *  Test Plan  *  *  *")
+        for case in self.cases:
+            case.write_doc(sys.stdout)
+
+    @property
+    def test_suite(self):
+        return self.__suite

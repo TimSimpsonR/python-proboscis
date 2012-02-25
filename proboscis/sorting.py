@@ -12,6 +12,9 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+"""
+This module is home to Proboscis's sorting algorithms.
+"""
 
 from collections import deque
 
@@ -77,13 +80,6 @@ class TestGraph:
                 for dependency_node in d_nodes:
                     node.add_dependency(dependency_node)
 
-#    def node_for_case(self, case):
-#        """Finds the node attached to the given case."""
-#        for node in self.nodes:
-#            if node.case is case:
-#                return node
-#        raise RuntimeError("Could not find node for case " + str(case))
-
     def nodes_for_class_or_function(self, test_home):
         """Returns nodes attached to the given class."""
         search_homes = [test_home]
@@ -105,7 +101,7 @@ class TestGraph:
         """Returns a sorted list of entries.
 
         Dismantles this graph's list of nodes and adds dependent information
-        to the list of TestEntries (iow don't call this twice).
+        to the list of TestEntries (in other words, don't call this twice).
 
         """
         independent_nodes = deque((n for n in self.nodes

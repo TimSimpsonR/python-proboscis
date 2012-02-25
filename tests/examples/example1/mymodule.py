@@ -44,7 +44,7 @@ def start_web_server():
         }
     }
 
-    
+
 def bad_start_web_server():
     raise RuntimeError("Error starting service.")
 

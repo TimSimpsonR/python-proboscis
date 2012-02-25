@@ -12,13 +12,19 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+"""Dynamically selected dependencies for Proboscis.
 
+If Nose is installed, Proboscis will use it. Otherwise Proboscis will use the
+default unittest framework, in order to function in IronPython and Jython. It
+also supports Python 2.5 in order to work with Jython.
+
+"""
 try:
     from nose.plugins.skip import SkipTest
     from nose.core import TestProgram
     from nose.core import TextTestResult
     from nose.core import TextTestRunner
-    
+
     use_nose = True
 
     def skip_test(test_self, message):
@@ -34,7 +40,7 @@ except ImportError:
     def skip_test(test_self, message):
         try:
             test_self.skipTest(message)
-        except AttributeError:
+        except AttributeError:  # For versions prior to 2.5.
             raise AssertionError("SKIPPED:%s" % message)
     class TestProgram(unittest.TestProgram):
 
@@ -58,4 +64,13 @@ except ImportError:
                      errorClasses=None):
             super(TextTestResult, self).__init__(stream, descriptions,
                                                  verbosity);
-            
+
+    class SkipTest(Exception):
+        def __init__(self, message):
+            super(SkipTest, self).__init__(self, message)
+            self.message = message
+
+        def __str__(self):
+            return self.message
+
+

@@ -15,7 +15,6 @@
 
 import sys
 
-
 if sys.version_info >= (2, 6):
     from proboscis.compatability._2_6 import capture_exception
     from proboscis.compatability._2_6 import capture_type_error

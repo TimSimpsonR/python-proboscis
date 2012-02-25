@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+
 def capture_exception(body_func, *except_type):
     try:
         body_func()
@@ -27,8 +28,8 @@ def capture_type_error(func):
     except TypeError, te:
         if "takes exactly 1 argument" in te.message \
            and "(0 given)" in te.message:
-            import proboscis
-            raise proboscis.ProboscisTestMethodClassNotDecorated()
+            from proboscis.core import ProboscisTestMethodClassNotDecorated
+            raise ProboscisTestMethodClassNotDecorated()
         else:
             raise
-        
+

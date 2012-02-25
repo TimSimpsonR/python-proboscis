@@ -21,6 +21,10 @@ from functools import wraps
 
 from proboscis.asserts import assert_raises_instance
 from proboscis import compatability
+from proboscis.core import TestRegistry
+
+
+DEFAULT_REGISTRY = TestRegistry()
 
 
 def expect_exception(exception_type):
@@ -61,54 +65,39 @@ def time_out(time):
     return return_method
 
 
-def decorate_func(func, time, exception_type_tuple):
-    """Raises time_out if time expires or expected exception not thrown."""
-    def cb_timeout(signum, frame):
-        raise TimeoutError("Time out after waiting " + str(time) + " seconds.")
-
-    def return_method(func):
-        """Turns function into decorated function."""
-        @wraps(func)
-        def new_method(*kargs, **kwargs):
-            previous_handler = signal.signal(signal.SIGALRM, cb_timeout)
-            try:
-                signal.alarm(time)
-                return func(*kargs, **kwargs)
-            except (exception_type_tuple):
-                pass  # This is what we want
-            finally:
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, previous_handler)
-        return new_method
-    return return_method
+def register(**kwargs):
+    """Registers a test in proboscis's default registry."""
+    DEFAULT_REGISTRY.register(**kwargs)
 
 
-def decorate_class(setUp_method=None, tearDown_method=None):
-    """Inserts method calls in the setUp / tearDown methods of a class."""
-    def return_method(cls):
-        """Returns decorated class."""
-        new_dict = cls.__dict__.copy()
-        if setUp_method:
-            if hasattr(cls, "setUp"):
-                @wraps(setUp_method)
-                def _setUp(self):
-                    setUp_method(self)
-                    cls.setUp(self)
-            else:
-                @wraps(setUp_method)
-                def _setUp(self):
-                    setUp_method(self)
-            new_dict["setUp"] = _setUp
-        if tearDown_method:
-            if hasattr(cls, "tearDown"):
-                @wraps(tearDown_method)
-                def _tearDown(self):
-                    tearDown_method(self)
-                    cls.setUp(self)
-            else:
-                @wraps(tearDown_method)
-                def _tearDown(self):
-                    tearDown_method(self)
-            new_dict["tearDown"] = _tearDown
-        return type(cls.__name__, (cls,), new_dict)
-    return return_method
+def test(home=None, **kwargs):
+    """Put this on a test class to cause Proboscis to run it. """
+    if home:
+        return DEFAULT_REGISTRY.register(home, **kwargs)
+    else:
+        def cb_method(home_2):
+            return DEFAULT_REGISTRY.register(home_2, **kwargs)
+        return cb_method
+
+
+def before_class(home=None, **kwargs):
+    """Like @test but indicates this should run before other class methods."""
+    kwargs.update({'run_before_class':True})
+    return test(home=home, **kwargs)
+
+
+def after_class(home=None, **kwargs):
+    """Like @test but indicates this should run before other class methods."""
+    kwargs.update({'run_after_class':True})
+    return test(home=home, **kwargs)
+
+
+def factory(func=None, **kwargs):
+    """A factory method returns new instances of Test classes."""
+    if func:
+        return DEFAULT_REGISTRY.register_factory(func)
+    else:
+        def cb_method(func_2):
+            return DEFAULT_REGISTRY.register_factory(func_2, **kwargs)
+        return cb_method
+

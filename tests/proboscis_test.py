@@ -23,6 +23,7 @@ import unittest
 
 from proboscis.asserts import assert_raises
 from proboscis import compatability
+from proboscis import decorators
 from proboscis.decorators import expect_exception
 from proboscis.decorators import time_out
 from proboscis.decorators import TimeoutError
@@ -175,14 +176,15 @@ class TestModuleConversionToNodes(unittest.TestCase):
     def setUp(self):
         import proboscis
         import proboscis_example
+        from proboscis.case import TestPlan
         from proboscis import TestRegistry
-        
-        old_default_registry = proboscis.DEFAULT_REGISTRY
-        proboscis.DEFAULT_REGISTRY = TestRegistry()
+
+        old_default_registry = proboscis.decorators.DEFAULT_REGISTRY
+        proboscis.decorators.DEFAULT_REGISTRY = TestRegistry()
         compatability.reload(proboscis_example)
-        self.registry = proboscis.DEFAULT_REGISTRY
+        self.registry = proboscis.decorators.DEFAULT_REGISTRY
         proboscis.default_registry = old_default_registry
-        self.plan = self.registry.get_test_plan()
+        self.plan = TestPlan.create_from_registry(self.registry)
 
     def test_should_load_correct_number_of_tests(self):
         self.assertEqual(5, len(self.plan.tests))
@@ -225,7 +227,7 @@ class TestModuleConversionToNodes(unittest.TestCase):
 
 
 if not compatability.is_jython():
-    
+
     @time_out(2)
     def lackadaisical_multiply(a, b):
         sum = 0
@@ -320,12 +322,12 @@ class TestMethodMarker(unittest.TestCase):
     def setUp(self):
         import proboscis
         from proboscis import TestRegistry
-        self.old_default_registry = proboscis.DEFAULT_REGISTRY
-        proboscis.DEFAULT_REGISTRY = TestRegistry()
+        self.old_default_registry = proboscis.decorators.DEFAULT_REGISTRY
+        proboscis.decorators.DEFAULT_REGISTRY = TestRegistry()
 
     def tearDown(self):
         import proboscis
-        proboscis.DEFAULT_REGISTRY = self.old_default_registry
+        proboscis.decorators.DEFAULT_REGISTRY = self.old_default_registry
 
     def test_should_mark_methods(self):
         import proboscis
