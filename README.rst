@@ -5,6 +5,15 @@ Proboscis
 Proboscis brings TestNG features to Python while being built on top of and
 backwards-compatible with Python's built-in unittest module.
 
+`View the generated docs here.`__
+
+__http://packages.python.org/proboscis/
+
+.. contents::
+   :local:
+
+Summary
+-------
 Proboscis uses decorators similar to TestNG's annotations instead of naming
 conventions to mark classes and
 functions as tests. If a class is decorated with proboscis.test, a single
@@ -31,6 +40,16 @@ Iron Python and Jython. Some Nose plugins work with Proboscis out of the box,
 while others may take some prodding or not work at all. Proboscis works only
 in Python 2, but Python 3 support is pending.
 
+
+Updates
+-------
+Version 1.2.4
+* Added a missing parameter to a format string error message.
+* Fixed bug with enabled property not being inherited by class methods.
+* Added a Check class to allow testing multiple assertions in a with block.
+
+Version 1.2.3
+* Proboscis is now compatable with IronPython and the JVM!
 
 
 Example

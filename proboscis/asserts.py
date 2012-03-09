@@ -28,13 +28,10 @@ import traceback
 from proboscis import compatability
 
 ASSERTION_ERROR=AssertionError
+# Setting this causes stack traces shown by unittest and nose to stop before
+# this moudle. It feels dirty but modifying the traceback is even worse.
+__unittest = True
 
-#TODO:
-#def assert_equal with delta(actual, expected, delta):
-#    """Asserts two numbers differ only by delta."""
-#
-#def assert_equal_no_order(actual, expected, message=None):
-#    """Asserts that two iterables contain the same elements in any order."""
 
 def assert_equal(actual, expected, message=None):
     """Asserts that the two values are equal."""
