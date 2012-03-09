@@ -29,7 +29,7 @@ setup(
     author='Rackspace',
     description="Extends Nose with certain TestNG like features.",
     keywords="nose test testng",
-    long_description=read('README'),
+    long_description=read('README.rst'),
     url='https://github.com/rackspace/python-proboscis',
     license='Apache',
     classifiers = [

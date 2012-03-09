@@ -16,3 +16,7 @@ nova.egg-info
 dist*
 proboscis.egg-info*
 *py.class
+covhtml
+docs/build/*
+*.class
+.coverage
