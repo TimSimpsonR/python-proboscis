@@ -27,6 +27,7 @@ from proboscis import decorators
 from proboscis.decorators import expect_exception
 from proboscis.decorators import time_out
 from proboscis.decorators import TimeoutError
+from proboscis import ProboscisTestMethodClassNotDecorated
 
 # We can't import Proboscis classes here or Nose will try to run them as tests.
 
@@ -347,6 +348,32 @@ class TestMethodMarker(unittest.TestCase):
         if sys.version_info < (3,0):
             self.assertTrue(hasattr(Example.something.im_func,
                                     '_proboscis_entry_'))
+
+
+class TestClassLevelDecorators(unittest.TestCase):
+
+    def setUp(self):
+        pass
+
+    def test_should_raise_error_if_missing_class_decorator(self):
+        from proboscis import test
+
+        class ExampleTest(object):
+            @test
+            def test_1(self):
+                pass
+
+        assert_raises(ProboscisTestMethodClassNotDecorated,
+                      compatability.capture_type_error, ExampleTest.test_1)
+
+
+    def test_compatability_wrapper_should_not_hide_error(self):
+
+        def test_1():
+            raise RuntimeError()
+
+        assert_raises(RuntimeError,
+                      compatability.capture_type_error, test_1)
 
 
 if __name__ == "__main__":
