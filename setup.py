@@ -27,9 +27,12 @@ setup(
     name="proboscis",
     version="1.2.4",
     author='Rackspace',
+    author_email='tim.simpson@rackspace.com',
     description="Extends Nose with certain TestNG like features.",
     keywords="nose test testng",
-    long_description=read('README.rst'),
+    long_description="Proboscis is a Python test framework that extends "
+                    "Python's built-in unittest module and Nose with "
+                    "features from TestNG.",
     url='https://github.com/rackspace/python-proboscis',
     license='Apache',
     classifiers = [
