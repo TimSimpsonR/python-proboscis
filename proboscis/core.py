@@ -249,7 +249,12 @@ class TestMethodClassEntry(TestEntry):
 
 
 class TestRegistry(object):
-    """Stores test information."""
+    """Stores test information.
+
+    All of Proboscis's decorators (@test, @before_class, etc) and the register
+    function use a default instance of this class, however its also possible to
+    instantiate multiple copies and add tests to them directly.
+    """
     def __init__(self):
         self.reset()
 
@@ -264,12 +269,18 @@ class TestRegistry(object):
         return method_entry
 
     def ensure_group_exists(self, group_name):
-        """Adds the group if it does not exist."""
+        """Adds the group to the registry if it does not exist.
+
+        :param group_name: The group to create.
+        """
         if not group_name in self.groups:
             self.groups[group_name] = TestGroup(group_name)
 
     def get_group(self, group_name):
-        """Finds a group by name."""
+        """Returns a TestGroup given its name.
+
+        :param group_name: Group to return.
+        """
         self.ensure_group_exists(group_name)
         return self.groups[group_name]
 
@@ -298,6 +309,9 @@ class TestRegistry(object):
         Registering a test with nothing allows for the creation of groups of
         groups, which can be useful for organization.
 
+        When proboscis.register is called it chains to this method bound to the
+        global default registry.
+
         """
         info = TestEntryInfo(**kwargs)
         if test_home is None:
@@ -315,6 +329,7 @@ class TestRegistry(object):
         A factory returns a list of test class instances. Proboscis runs all
         factories at start up and sorts the instances like normal tests.
 
+        :param func: the function to be added.
         """
         self.factories.append(func)
 

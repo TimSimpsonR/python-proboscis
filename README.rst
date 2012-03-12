@@ -23,7 +23,6 @@ Features
 
 - Allows for explicit `test dependencies`_ and skipping of dependent tests
   on failures.
-.. _`test dependencies`: http://beust.com/weblog/2004/08/18/using-annotation-inheritance-for-testing/
 
 - Runs xUnit style clases if desired or needed for backwards compatability.
 
@@ -33,6 +32,7 @@ Features
 - Runs in `IronPython`_ and `Jython`_ (although if you're targetting the JVM
   you should consider using TestNG instead)!
 
+.. _`test dependencies`: http://beust.com/weblog/2004/08/18/using-annotation-inheritance-for-testing/
 .. _IronPython: http://ironpython.net/
 .. _Jython: http://www.jython.org/
 

@@ -18,7 +18,16 @@
 import traceback
 from proboscis.asserts import assert_equal
 from proboscis.asserts import assert_not_equal
+from proboscis.asserts import assert_is
+from proboscis.asserts import assert_is_not
+from proboscis.asserts import assert_is_not_none
+from proboscis.asserts import assert_false
+from proboscis.asserts import assert_true
+from proboscis.asserts import assert_raises
+from proboscis.asserts import assert_raises_instance
+from proboscis.asserts import assert_is_none
 from proboscis.asserts import ASSERTION_ERROR
+from proboscis.compatability import capture_exception
 
 
 def get_stack_trace_of_caller(level_up):
@@ -32,7 +41,38 @@ def get_stack_trace_of_caller(level_up):
     return new_st
 
 
-class Checker(object):
+class Check(object):
+    """Used to test and record multiple failing asserts in a single function.
+
+    Usually its best to write numerous small methods with a single assert in
+    each one, but sometimes this ideal isn't possible and multiple asserts
+    must be made in the same function.
+
+    In some cases, such as when all properties of a returned object are being
+    interrogated, these asserts do not depend on each other and having the test
+    stop after the first one can be a bother if the task was run on a CI
+    server or somewhere else.
+
+    This class solves that by saving any assert failures and raising one giant
+    assert at the end of a with block.
+
+    To use it, write something like:
+
+    .. code-block:: python
+
+        some_obj = ...
+        with Check() as check:
+            check.equal(some_obj.a, "A")
+            check.equal(some_obj.b, "B")
+            check.equal(some_obj.c, "C")
+
+    At the end of the with block if any checks failed one assertion will be
+    raised containing inside it the stack traces for each assertion.
+
+    If instances are not used in a with block any failed assert will
+    raise instantly.
+    """
+
 
     def __init__(self):
         self.messages = []
@@ -53,12 +93,19 @@ class Checker(object):
         self.odd = not self.odd
 
     def equal(self, *args, **kwargs):
+        """Identical to assert_equal."""
         self._run_assertion(assert_equal, *args, **kwargs)
 
     def false(self, *args, **kwargs):
-        self._run_assertion(assert_false, *args, **kwargs)
+        """Identical to assert_false."""
+        self._run_assertion(assert_false, *args, **kwargs)\
+
+    def fail(self, *args, **kwargs):
+        """Identical to assert_false."""
+        self._run_assertion(assert_false, *args, **kwargs)\
 
     def not_equal(self, *args, **kwargs):
+        """Identical to assert_not_equal."""
         _run_assertion(assert_not_equal, *args, **kwargs)
 
     def _run_assertion(self, assert_func, *args, **kwargs):
@@ -67,9 +114,10 @@ class Checker(object):
         string to the messages list.
         """
         if self.protected:
-            try:
+            def func():
                 assert_func(*args, **kwargs)
-            except ASSERTION_ERROR as ae:
+            ae = capture_exception(func, ASSERTION_ERROR)
+            if error is not None:
                 st = get_stack_trace_of_caller(2)
                 self._add_exception(ASSERTION_ERROR, ae, st)
         else:
@@ -94,4 +142,23 @@ class Checker(object):
             raise ASSERTION_ERROR(final_message)
 
     def true(self, *args, **kwargs):
+        """Identical to assert_true."""
         self._run_assertion(assert_true, *args, **kwargs)
+
+def add_assert_method(name, func):
+    def f(self, *args, **kwargs):
+        self._run_assertion(func, *args, **kwargs)
+    f.__doc__ = "Identical to %s." % func.__name__
+    setattr(Check, name, f)
+
+add_assert_method("equal", assert_equal)
+add_assert_method("not_equal", assert_not_equal)
+add_assert_method("false", assert_false)
+add_assert_method("true", assert_true)
+add_assert_method("is_same", assert_is)
+add_assert_method("is_none", assert_is_none)
+add_assert_method("is_not", assert_is_not)
+add_assert_method("is_not_none", assert_is_not_none)
+add_assert_method("raises", assert_raises)
+add_assert_method("raises_instance", assert_raises_instance)
+

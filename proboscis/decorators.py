@@ -15,8 +15,6 @@
 
 """Decorators useful to the tests."""
 
-import signal
-
 from functools import wraps
 
 from proboscis.asserts import assert_raises_instance
@@ -44,8 +42,8 @@ class TimeoutError(RuntimeError):
 
 def time_out(time):
     """Raises TimeoutError if the decorated method does not finish in time."""
-    if compatability.is_jython():
-        raise ImportError("Not supported.")
+    if compatability.supports_time_out():
+        raise ImportError("time_out not supported for this version of Python.")
 
     def cb_timeout(signum, frame):
         raise TimeoutError("Time out after waiting " + str(time) + " seconds.")
@@ -66,12 +64,55 @@ def time_out(time):
 
 
 def register(**kwargs):
-    """Registers a test in proboscis's default registry."""
+    """Registers a test in proboscis's default registry.
+
+    :param home: The target class or function.
+
+    This also allows all of the parameters used by the @test decorator.
+
+    This function works differently than a decorator as it allows the class or
+    function which is being registered to appear in the same call as all of the
+    options.
+
+    Its designed to make it easier to register class or functions with
+    Proboscis after they're defined.
+
+    """
     DEFAULT_REGISTRY.register(**kwargs)
 
 
 def test(home=None, **kwargs):
-    """Put this on a test class to cause Proboscis to run it. """
+    """Decorates a test class or function to cause Proboscis to run it.
+
+    The behavior differs depending the target:
+
+        - If put on a stand-alone function, the function will run by itself.
+
+        - If put on a class inheriting unittest.TestCase, then the class will
+          run just like a normal unittest class by using the method names and
+          instantiate a new instance of the class for each test method.
+
+        - If the class does not inherit from unittest.TestCase, the class will
+          be instantiated once and this instance will be passed to each method
+          decorated with @test (this increases encapsulation over using class
+          fields as the instance can not be accessed outside of its methods).
+
+          Note that due to how decorators work its impossible to know if a
+          function is or is not part of a class; thus if a class method is
+          decorated with test but its class is not then
+          ProboscisTestMethodNotDecorated will be raised.
+
+    :param groups: A list of strings representing the groups this test method
+                   or class belongs to. By default this is an empty list.
+    :param depends_on: A list of test functions or classes which must run
+                       before this test. By default this is an empty list.
+    :param depends_on_groups: A list of strings each naming a group that must
+                              run before this test. By default this is an empty
+                              list.
+    :param enabled: By default, true. If set to false this test will not run.
+    :param always_run: If true this test will run even if the tests listed in
+                       depends_on or depends_on_groups have failed.
+    """
     if home:
         return DEFAULT_REGISTRY.register(home, **kwargs)
     else:
@@ -81,19 +122,29 @@ def test(home=None, **kwargs):
 
 
 def before_class(home=None, **kwargs):
-    """Like @test but indicates this should run before other class methods."""
+    """Like @test but indicates this should run before other class methods.
+
+    All of the arguments sent to @test work with this decorator as well.
+
+    """
     kwargs.update({'run_before_class':True})
     return test(home=home, **kwargs)
 
 
 def after_class(home=None, **kwargs):
-    """Like @test but indicates this should run before other class methods."""
+    """Like @test but indicates this should run after other class methods.
+
+    This will run even if methods inside the class fail.
+
+    All of the arguments sent to @test work with this decorator as well.
+
+    """
     kwargs.update({'run_after_class':True})
     return test(home=home, **kwargs)
 
 
 def factory(func=None, **kwargs):
-    """A factory method returns new instances of Test classes."""
+    """Decorates a function which returns new instances of Test classes."""
     if func:
         return DEFAULT_REGISTRY.register_factory(func)
     else:

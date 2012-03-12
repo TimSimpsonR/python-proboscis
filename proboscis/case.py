@@ -237,7 +237,15 @@ class TestResultListener():
 
 
 class TestResult(TestResultListener, dependencies.TextTestResult):
-    """Mixes TestResultListener with nose's TextTestResult class."""
+    """Adds Proboscis skip on dependency failure functionality.
+
+    Extends either Nose or unittest's TextTestResult class.
+    If a program needs to use its own TestResult class it must inherit from
+    this class and call "onError" at the start of both the addError and
+    addFailure functions, passing the "test" parameter, to keep
+    Proboscis's skip on depdendency failure functionality.
+
+    """
 
     # I had issues extending TextTestResult directly so resorted to this.
 
@@ -420,15 +428,42 @@ class TestSuiteCreator(object):
 
 
 class TestProgram(dependencies.TestProgram):
-    """The entry point of Proboscis.
+    """Use this to run Proboscis.
 
-    Creates the test suite and loaders before handing things off to Nose which
-    runs as usual.
+    Translates the Proboscis test registry into types used by Nose or unittest
+    in order to run the program.
 
+    Most arguments to this are simply passed to Nose or unittest's TestProgram
+    class.
+
+    For most cases using the default arguments works fine.
+
+    :param registry: The test registry to use. If unset uses the default global
+                     registry.
+    :param groups: A list of strings representing the groups of tests to run.
+                   The list is added to by parsing the argv argument. If unset
+                   then all groups are run.
+    :param testLoader: The test loader. By default, its unittest.TestLoader.
+    :param config: The config passed to Nose or unittest.TestProgram. The
+                   config determines things such as plugins or output streams,
+                   so it may be necessary to create this for advanced use
+                   cases.
+    :param plugins: Nose plugins. Similar to config it may be necessary to
+                    set this in an advanced setup.
+    :param env: By default is os.environ. This is used only by Nose.
+    :param testRunner: By default Proboscis uses its own. If this is set
+                       however care must be taken to avoid breaking Proboscis's
+                       automatic skipping of tests on dependency failures.
+                       In particular, _makeResult must return a subclass of
+                       proboscis.TestResult which calls
+                       proboscis.TestResult.onError at the start of the
+                       addFailure and addError methods.
+    :param stream: By default this is standard out.
+    :param argv: By default this is sys.argv. Proboscis parses this for the
+                 --group argument.
     """
     def __init__(self,
                  registry=DEFAULT_REGISTRY,
-                 classes=None,
                  groups=None,
                  testLoader=None,
                  config=None,
@@ -438,7 +473,6 @@ class TestProgram(dependencies.TestProgram):
                  stream=None,
                  argv=None,
                  *args, **kwargs):
-        classes = classes or []
         groups = groups or []
         argv = argv or sys.argv
         argv = self.extract_groups_from_argv(argv, groups)
@@ -507,13 +541,18 @@ class TestProgram(dependencies.TestProgram):
             self.__run = run
 
     def create_test_suite_from_entries(self, config, cases):
+        """Creates a suite runnable by unittest."""
         return self.plan.create_test_suite(config, self.__loader)
 
     def extract_groups_from_argv(self, argv, groups):
-        """Find the group argument if it exists and extract it.
+        """Given argv, records the "--group" options.
 
-        Nose will fail if we pass it an argument it doesn't know of, so this
-        function modifies argv.
+        :param argv: A list of arguments, such as sys.argv.
+        :param groups: A list of strings for each group to run which is added
+                       to.
+
+        Returns a copy of param argv with the --group options removed. This is
+        useful if argv needs to be passed to another program such as Nose.
 
         """
         new_argv = [argv[0]]
@@ -525,6 +564,11 @@ class TestProgram(dependencies.TestProgram):
         return new_argv
 
     def run_and_exit(self):
+        """Calls unittest or Nose to run all tests.
+
+        unittest will call sys.exit on completion.
+
+        """
         self.__run()
 
     def show_plan(self):

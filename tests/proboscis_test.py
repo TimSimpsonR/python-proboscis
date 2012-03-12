@@ -227,7 +227,7 @@ class TestModuleConversionToNodes(unittest.TestCase):
         self.assertEqual(RandomTestOne, filtered[2].entry.home)
 
 
-if not compatability.is_jython():
+if compatability.supports_time_out():
 
     @time_out(2)
     def lackadaisical_multiply(a, b):

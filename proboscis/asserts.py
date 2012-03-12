@@ -15,9 +15,13 @@
 
 """Assert functions with a parameter order of actual_value, expected_value.
 
-This module is a clone of TestNG's Assert class with the static methods changed
-to functions, and the term "equals" changed to simply "equal" as this seems
-more Pythonic.
+This module contains many stand-ins for functions in Nose.tools. It is also
+a clone of TestNG's Assert class with the static methods changed to functions,
+and the term "equals" changed to simply "equal" to be more Pythonic.
+
+There are also a few original assertions methods and the class Check.
+
+This module should be preferred when Nose is not always available.
 
 """
 
@@ -34,7 +38,12 @@ __unittest = True
 
 
 def assert_equal(actual, expected, message=None):
-    """Asserts that the two values are equal."""
+    """Asserts that the two values are equal.
+
+    :param actual: The actual value.
+    :param expected: The expected value.
+    :param message: A message to show in the event of a failure.
+    """
     #TODO: assert equal with dictionaries, arrays, etc
     if actual == expected:
         return
@@ -47,6 +56,11 @@ def assert_equal(actual, expected, message=None):
 
 
 def assert_false(condition, message=None):
+    """Asserts that the given condition is false.
+
+    :param condition: Must be true.
+    :param message: A message to show in the event of failure.
+    """
     if condition:
         if not message:
             message = "Condition was True."
@@ -54,7 +68,13 @@ def assert_false(condition, message=None):
 
 
 def assert_is(actual, expected, message=None):
-    """Asserts that the two values are equal."""
+    """Asserts that the two variables share the same identity.
+
+    :param actual: A variable which has the actual identity.
+    :param expected: The variable which has the expected variable.
+    :param message: A message to show in the event of failure.
+
+    """
     #TODO: assert equal with dictionaries, arrays, etc
     if actual is expected:
         return
@@ -67,7 +87,11 @@ def assert_is(actual, expected, message=None):
 
 
 def assert_is_none(value, message=None):
-    """Asserts that the two values are equal."""
+    """Asserts that the given value is None.
+
+    :param value: The value which is tested for nothingness.
+    :param message: A message to show in the event of failure.
+    """
     #TODO: assert equal with dictionaries, arrays, etc
     if value is None:
         return
@@ -80,7 +104,12 @@ def assert_is_none(value, message=None):
 
 
 def assert_is_not(actual, expected, message=None):
-    """Asserts that the two values are equal."""
+    """Asserts that the two variables has different identities.
+
+    :param actual: A variable which has the actual identity.
+    :param expected: A variable which has the expected identity.
+    :param message: The assertion message if the variables share an identity.
+    """
     #TODO: assert equal with dictionaries, arrays, etc
     if actual is not expected:
         return
@@ -93,7 +122,11 @@ def assert_is_not(actual, expected, message=None):
 
 
 def assert_is_not_none(value, message=None):
-    """Asserts that the two values are equal."""
+    """Asserts that a value is anything other than None.
+
+    :param value: A variable which is expected to be anything other than None.
+    :param message: The assertion message if the variable is None.
+    """
     #TODO: assert equal with dictionaries, arrays, etc
     if value is not None:
         return
@@ -105,6 +138,12 @@ def assert_is_not_none(value, message=None):
     raise ASSERTION_ERROR(message)
 
 def assert_not_equal(actual, expected, message=None):
+    """Asserts that the two values are not equal.
+
+    :param actual: The actual value.
+    :param expected: The expected value.
+    :param message: The assertion message if the variables are equal.
+    """
     if actual != expected:
         return
     if not message:
@@ -116,6 +155,11 @@ def assert_not_equal(actual, expected, message=None):
 
 
 def assert_true(condition, message=None):
+    """Asserts that the given value is True.
+
+    :param condition: A value that must be True.
+    :param message: The assertion message if the value is not True.
+    """
     if not condition:
         if not message:
             message = "Condition was False."
@@ -125,7 +169,14 @@ def assert_true(condition, message=None):
 def assert_raises(exception_type, function, *args, **kwargs):
     """Calls function and fails the test if an exception is not raised.
 
-    The exact type of exception must be thrown.
+    Unlike nose.Tool's assert_raises or TestCase.assertRaises the given
+    exception type must match the exactly: if the raised exception is a
+    subclass the test will fail. For example, it fails if the exception_type
+    param is "Exception" but "RuntimeException" is raised. To be less demanding
+    use assert_raises_instance.
+
+    :param exception_type: The exact type of exception to be raised.
+    :param function: The function to call, followed by its arguments.
 
     """
     actual_exception = compatability.capture_exception(
@@ -143,7 +194,12 @@ def assert_raises(exception_type, function, *args, **kwargs):
 def assert_raises_instance(exception_type, function, *args, **kwargs):
     """Calls function and fails the test if an exception is not raised.
 
-    The exception thrown must only be an instance of the given type.
+    The exception thrown must only be an instance of the given type. This means
+    if "Exception" is expected but "RuntimeException" is raised the test will
+    still pass. For a stricter function see assert_raises.
+
+    :param exception_type: The expected exception type.
+    :param function: The function to call, followed by its arguments.
 
     """
     actual_exception = compatability.capture_exception(
@@ -154,6 +210,16 @@ def assert_raises_instance(exception_type, function, *args, **kwargs):
 
 
 def fail(message=None):
+    """Fails a test.
+
+    :param message: The message to display.
+
+    Unlike the other functions in this module the message argument is required.
+
+    """
     if not message:
         message = "Test failure."
     raise ASSERTION_ERROR(message)
+
+
+from proboscis.check import Check

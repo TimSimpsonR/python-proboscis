@@ -19,7 +19,7 @@
 import unittest
 
 
-from proboscis.check import Checker
+from proboscis.asserts import Check
 from proboscis.asserts import ASSERTION_ERROR
 from proboscis.asserts import assert_raises
 from proboscis.asserts import assert_true
@@ -30,13 +30,13 @@ from proboscis.asserts import fail
 class TestChecker(unittest.TestCase):
 
     def test_when_no_failures_occur_nothing_happens(self):
-        with Checker() as check:
+        with Check() as check:
             print("CEHCK:%s" % check)
             check.equal("HI", "HI")
 
     def test_single_failure_is_presented(self):
         try:
-            with Checker() as check:
+            with Check() as check:
                 check.equal(4, 6)
             fail("Expected an assertion!")
         except ASSERTION_ERROR as ae:
@@ -44,7 +44,7 @@ class TestChecker(unittest.TestCase):
 
     def test_multiple_failures_are_presented(self):
         try:
-            with Checker() as c:
+            with Check() as c:
                 c.equal(2,27)
                 c.equal("BEE", "BEE")
                 c.equal(39, 37)
@@ -60,7 +60,7 @@ class TestChecker(unittest.TestCase):
         # The exception is *not* wrapped as ASSERTION_ERROR because no failures
         # occur.
         def check_func():
-            with Checker() as c:
+            with Check() as c:
                 c.equal(2,2)
                 c.equal("BEE", "BEE")
                 c.equal(37, 37)
@@ -70,7 +70,7 @@ class TestChecker(unittest.TestCase):
 
     def test_when_failures_and_an_error_occurs(self):
         try:
-            with Checker() as c:
+            with Check() as c:
                 c.equal(2,27)
                 c.equal("BEE", "BEE")
                 c.equal(39, 37)

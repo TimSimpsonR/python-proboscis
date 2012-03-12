@@ -32,3 +32,12 @@ else:
 
 def is_jython():
     return hasattr(sys, 'JYTHON_JAR')
+
+def supports_time_out():
+    if is_jython():
+        return False
+    try:
+        import signal
+        return True
+    except ImportError:
+        return False

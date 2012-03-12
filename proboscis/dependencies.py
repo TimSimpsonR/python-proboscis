@@ -20,7 +20,7 @@ also supports Python 2.5 in order to work with Jython.
 
 """
 try:
-    from nose.plugins.skip import SkipTest
+    from nose.plugins.skip import SkipTest as ExternalSkipTest
     from nose.core import TestProgram
     from nose.core import TextTestResult
     from nose.core import TextTestRunner
@@ -65,12 +65,23 @@ except ImportError:
             super(TextTestResult, self).__init__(stream, descriptions,
                                                  verbosity);
 
-    class SkipTest(Exception):
+    class ExternalSkipTest(Exception):
         def __init__(self, message):
-            super(SkipTest, self).__init__(self, message)
+            super(ExternalSkipTest, self).__init__(self, message)
             self.message = message
 
         def __str__(self):
             return self.message
 
+
+# Doing it this way so I won't change Nose's pydoc.
+class SkipTest(ExternalSkipTest):
+    """
+    Raise this to skip a test.
+    If Nose is available its SkipTest is used.
+    Otherwise Proboscis creates its own which class that calls
+    unittest.TestCase.skipTest. If that method isn't available (anything under
+    2.7) then skipping does not work and test errors are presented.
+    """
+    pass
 

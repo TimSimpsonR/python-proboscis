@@ -176,6 +176,9 @@ accomplished fairly easy via subclassing:
 Additional Tricks
 -----------------
 
+Groups of Groups
+~~~~~~~~~~~~~~~~
+
 Its possible to create empty test entries that link groups together using the
 proboscis.register function without a class or function.  A good
 place to do (as well as store other bits of configuration) is in the start up
@@ -190,3 +193,4 @@ all "slow" tests with the following command:
 .. code-block:: bash
 
     python runtests.py --group=slow
+
