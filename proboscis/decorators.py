@@ -42,8 +42,9 @@ class TimeoutError(RuntimeError):
 
 def time_out(time):
     """Raises TimeoutError if the decorated method does not finish in time."""
-    if compatability.supports_time_out():
+    if not compatability.supports_time_out():
         raise ImportError("time_out not supported for this version of Python.")
+    import signal
 
     def cb_timeout(signum, frame):
         raise TimeoutError("Time out after waiting " + str(time) + " seconds.")

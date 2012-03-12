@@ -117,7 +117,7 @@ class Check(object):
             def func():
                 assert_func(*args, **kwargs)
             ae = capture_exception(func, ASSERTION_ERROR)
-            if error is not None:
+            if ae is not None:
                 st = get_stack_trace_of_caller(2)
                 self._add_exception(ASSERTION_ERROR, ae, st)
         else:
