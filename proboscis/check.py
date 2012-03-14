@@ -73,7 +73,6 @@ class Check(object):
     raise instantly.
     """
 
-
     def __init__(self):
         self.messages = []
         self.odd = True
@@ -91,22 +90,6 @@ class Check(object):
         msg = '\n'.join([start, middle, end])
         self.messages.append(msg)
         self.odd = not self.odd
-
-    def equal(self, *args, **kwargs):
-        """Identical to assert_equal."""
-        self._run_assertion(assert_equal, *args, **kwargs)
-
-    def false(self, *args, **kwargs):
-        """Identical to assert_false."""
-        self._run_assertion(assert_false, *args, **kwargs)\
-
-    def fail(self, *args, **kwargs):
-        """Identical to assert_false."""
-        self._run_assertion(assert_false, *args, **kwargs)\
-
-    def not_equal(self, *args, **kwargs):
-        """Identical to assert_not_equal."""
-        _run_assertion(assert_not_equal, *args, **kwargs)
 
     def _run_assertion(self, assert_func, *args, **kwargs):
         """
@@ -141,9 +124,6 @@ class Check(object):
             final_message = '\n'.join(self.messages)
             raise ASSERTION_ERROR(final_message)
 
-    def true(self, *args, **kwargs):
-        """Identical to assert_true."""
-        self._run_assertion(assert_true, *args, **kwargs)
 
 def add_assert_method(name, func):
     def f(self, *args, **kwargs):

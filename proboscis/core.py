@@ -237,10 +237,10 @@ class TestMethodClassEntry(TestEntry):
 
     def contains(self, group_names, classes):
         """True if this belongs to any of the given groups or classes."""
-        if contains_shallow(group_names, classes):
+        if self.contains_shallow(group_names, classes):
             return True
         for entry in self.children:
-            if entry.contains(group_names, classes):
+            if entry.contains(group_names, []):
                 return True
         return False
 
@@ -296,6 +296,8 @@ class TestRegistry(object):
         if entry.home is not None:
             if hasattr(entry.home, '_proboscis_entry_'):
                 # subclasses will get this attribute from their parents.
+                # This if statement is necessary because factories may create
+                # multiple entries per test method.
                 if entry.home._proboscis_entry_.home == entry.home:
                     raise RuntimeError("A test decorator or registration was "
                         "applied twice to the class or function %s." %

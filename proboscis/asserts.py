@@ -131,10 +131,7 @@ def assert_is_not_none(value, message=None):
     if value is not None:
         return
     if not message:
-        try:
-            message = "%s is None" % value
-        except Exception:
-            message = "The value is None."
+        message = "The value is None."
     raise ASSERTION_ERROR(message)
 
 def assert_not_equal(actual, expected, message=None):
@@ -209,7 +206,7 @@ def assert_raises_instance(exception_type, function, *args, **kwargs):
         fail("Expected an exception of type %s to be raised." % exception_type)
 
 
-def fail(message=None):
+def fail(message):
     """Fails a test.
 
     :param message: The message to display.

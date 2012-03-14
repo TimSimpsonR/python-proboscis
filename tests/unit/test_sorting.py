@@ -22,6 +22,8 @@ import unittest
 
 
 from proboscis.asserts import assert_raises
+from proboscis.asserts import assert_true
+from proboscis.asserts import assert_false
 from proboscis import compatability
 from proboscis import decorators
 from proboscis.decorators import expect_exception
@@ -176,7 +178,7 @@ class TestModuleConversionToNodes(unittest.TestCase):
 
     def setUp(self):
         import proboscis
-        import proboscis_example
+        from tests.unit import proboscis_example
         from proboscis.case import TestPlan
         from proboscis import TestRegistry
 
@@ -317,18 +319,21 @@ class TestAssertRaises(unittest.TestCase):
                           throw_time_out)
 
 
-
-class TestMethodMarker(unittest.TestCase):
+class ProboscisRegistryTest(unittest.TestCase):
 
     def setUp(self):
         import proboscis
         from proboscis import TestRegistry
         self.old_default_registry = proboscis.decorators.DEFAULT_REGISTRY
-        proboscis.decorators.DEFAULT_REGISTRY = TestRegistry()
+        self.registry = TestRegistry()
+        proboscis.decorators.DEFAULT_REGISTRY = self.registry
 
     def tearDown(self):
         import proboscis
         proboscis.decorators.DEFAULT_REGISTRY = self.old_default_registry
+
+
+class TestMethodMarker(ProboscisRegistryTest):
 
     def test_should_mark_methods(self):
         import proboscis
@@ -374,6 +379,15 @@ class TestClassLevelDecorators(unittest.TestCase):
 
         assert_raises(RuntimeError,
                       compatability.capture_type_error, test_1)
+
+    def test_compatability_wrapper_should_not_hide_TypeError(self):
+
+        def test_1():
+            raise TypeError()
+
+        assert_raises(TypeError,
+                      compatability.capture_type_error, test_1)
+
 
 
 if __name__ == "__main__":

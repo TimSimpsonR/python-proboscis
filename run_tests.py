@@ -396,6 +396,26 @@ class Example4(Example1):
         example4_run.run_tests()
 
 
+class ExampleF(Example1):
+
+    base_directory="example_factory"
+
+    runs = [
+        {
+            "args":[],
+            "failures":[]
+        }
+    ]
+
+    source_files = ["run_tests.py",
+                    join("tests", "service_tests.py")]
+
+    def run(self, index):
+        from tests.examples import example_factory
+        sys.path.append(example_factory.__path__[0])
+        import spam_api
+        from tests.examples.example_factory import run_tests as exampleF_run
+        exampleF_run.run_tests()
 
 
 def run_all(root="."):
@@ -408,6 +428,7 @@ def run_all(root="."):
     ExampleRunner(root, Example2())
     ExampleRunner(root, Example3())
     ExampleRunner(root, Example4())
+    ExampleRunner(root, ExampleF())
 
 
 if __name__ == '__main__':
