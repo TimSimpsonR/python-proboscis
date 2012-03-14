@@ -191,7 +191,9 @@ class TestCase(object):
         if not self.dependency_failure:  # Do NOT overwrite the first cause
             self.dependency_failure = dependency_failure
             for dependent in self.dependents:
-                dependent.fail_test(dependency_failure=dependency_failure)
+                if dependent.critical:
+                    dependent.case.fail_test(
+                        dependency_failure=dependency_failure)
 
     def write_doc(self, file):
         file.write(str(self.entry.home) + "\n")
