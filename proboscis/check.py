@@ -28,6 +28,7 @@ from proboscis.asserts import assert_raises_instance
 from proboscis.asserts import assert_is_none
 from proboscis.asserts import ASSERTION_ERROR
 from proboscis.compatability import capture_exception
+from proboscis.asserts import fail
 
 
 def get_stack_trace_of_caller(level_up):
@@ -141,4 +142,4 @@ add_assert_method("is_not", assert_is_not)
 add_assert_method("is_not_none", assert_is_not_none)
 add_assert_method("raises", assert_raises)
 add_assert_method("raises_instance", assert_raises_instance)
-
+add_assert_method("fail", fail)
