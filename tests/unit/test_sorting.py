@@ -193,14 +193,14 @@ class TestModuleConversionToNodes(unittest.TestCase):
         self.assertEqual(5, len(self.plan.tests))
 
     def test_startup_must_be_first(self):
-        from proboscis_example import StartUp
+        from tests.unit.proboscis_example import StartUp
         self.assertEqual(StartUp, self.plan.tests[0].entry.home)
 
     def test_filter_with_one(self):
         self.plan.filter(group_names=["init"])
         filtered = self.plan.tests
         self.assertEqual(1, len(filtered))
-        from proboscis_example import StartUp
+        from tests.unit.proboscis_example import StartUp
         self.assertEqual(StartUp, filtered[0].entry.home)
 
     def test_filter_should_keep_dependencies(self):
@@ -209,22 +209,22 @@ class TestModuleConversionToNodes(unittest.TestCase):
         # Should include "integration" group and also "init" group since it
         # is a dependency.
         self.assertEqual(4, len(filtered))
-        from proboscis_example import StartUp
+        from tests.unit.proboscis_example import StartUp
         self.assertEqual(StartUp, filtered[0].entry.home)
         # All the other ones must be in the integration group
         for i in range(1, 4):
             self.assertEqual("integration", filtered[i].entry.info.groups[0])
 
     def test_filter_with_classes(self):
-        from proboscis_example import RandomTestOne
+        from tests.unit.proboscis_example import RandomTestOne
         self.plan.filter(classes=[RandomTestOne])
         filtered = self.plan.tests
         # Should include RandomTestOne, which depends on RandomTestZero,
         # which depends on init
         self.assertEqual(3, len(filtered))
-        from proboscis_example import StartUp
+        from tests.unit.proboscis_example import StartUp
         self.assertEqual(StartUp, filtered[0].entry.home)
-        from proboscis_example import RandomTestZero
+        from tests.unit.proboscis_example import RandomTestZero
         self.assertEqual(RandomTestZero, filtered[1].entry.home)
         self.assertEqual(RandomTestOne, filtered[2].entry.home)
 

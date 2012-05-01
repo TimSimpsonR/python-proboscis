@@ -28,6 +28,7 @@ from proboscis.asserts import assert_raises_instance
 from proboscis.asserts import assert_is_none
 from proboscis.asserts import ASSERTION_ERROR
 from proboscis.compatability import capture_exception
+from proboscis.compatability import raise_with_traceback
 from proboscis.asserts import fail
 
 
@@ -119,7 +120,7 @@ class Check(object):
             final_message = '\n'.join(self.messages)
         if _type is not None:  # An error occurred
             if len(self.messages) == 0:
-                raise _type, value, tb
+                raise_with_traceback(_type, value, tb)
             self._add_exception(_type, value, traceback.extract_tb(tb))
         if len(self.messages) != 0:
             final_message = '\n'.join(self.messages)

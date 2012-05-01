@@ -21,11 +21,16 @@ are in tests/proboscis_test.py.
 import os
 import sys
 
-from abc import ABCMeta
 from proboscis.asserts import assert_equal
 from os.path import join
 
 import proboscis
+from proboscis.compatability import capture_exception
+from proboscis.compatability import is_jython
+from proboscis.compatability import reload
+
+
+CAN_USE_WITH = not is_jython()
 
 
 def fake_exit(*args, **kwargs):
@@ -44,14 +49,13 @@ def reload_proboscis():
     """
     reload(proboscis)
     def new_cap_ex(body_func, except_type):
-        try:
-            body_func()
-            return None
-        except Exception as e:
+        e = capture_exception(body_func, Exception)
+        if e:
             if (str(type(e)) == str(except_type)):
                 return e
             else:
                 raise
+        return None
     proboscis.compatability.capture_exception = new_cap_ex
 
 class FailureLines(object):
@@ -91,8 +95,14 @@ class FailureLines(object):
 def assert_failures_in_file(source_file, expected_failures):
     """Checks the output of Proboscis run for expected failures."""
     failures = FailureLines(source_file, expected_failures)
-    # This isn't solid at all but works fine in the limited use cases.
-    if proboscis.dependencies.use_nose:
+    # Iterate the output, find all lines of text with the words FAIL or ERROR
+    # and add them to a collection of "actual" failures that can be checked
+    # against expected failures.
+    # 2.7 seems to put the important parts on the next line, while 2.6 has it
+    # on the same line.
+    # I think Nose may also use this first format.
+    if is_jython() or sys.version_info < (2, 7) \
+        or proboscis.dependencies.use_nose:
         for line in open(source_file, 'r'):
             if "FAIL: " in line:
                 failures.add_actual(line[6:].strip())
@@ -115,7 +125,8 @@ def create_rst(block_type, source_file, rst_file):
     if not os.path.exists(source_file):
         raise ValueError("File %s not found." % source_file)
     make_dirs(os.path.dirname(rst_file))
-    with open(rst_file, 'w') as output:
+    output = open(rst_file, 'w')
+    try:
         def code_block():
             output.write(".. code-block:: " + block_type + "\n\n")
         code_block()
@@ -124,6 +135,8 @@ def create_rst(block_type, source_file, rst_file):
                 code_block()
             else:
                 output.write("    " + line)
+    finally:
+        output.close()
 
 class ExampleRunner(object):
     """Runs an example folder as if Python was executed from that directory.
@@ -178,9 +191,12 @@ class ExampleRunner(object):
     def restore_modules(self):
         """Necessary to get the decorators to register tests again."""
         current_module_names = sys.modules.keys()
+        delete_list = []
         for name in current_module_names:
             if name not in self.module_names:
-                del sys.modules[name]
+                delete_list.append(name)
+        for name in delete_list:
+            del sys.modules[name]
 
     def run(self, run_info, index):
         """Manipulates various global variables before running a test.
@@ -228,7 +244,10 @@ class ExampleRunner(object):
             sys.stdout = old_std_out
             sys.exit = old_sys_exit
 
-            assert_failures_in_file(output_file, run_info["failures"])
+            failures = run_info["failures"]
+            if sys.version_info < (2, 7) and not proboscis.dependencies.use_nose:
+                failures += run_info["skips"]
+            assert_failures_in_file(output_file, failures)
             rst_file = join(output_directory, output_file_name + ".rst")
             create_rst("bash", output_file, rst_file)
 
@@ -245,19 +264,23 @@ class UnitTestExample(object):
     runs = [
         {
             "args":[],
-            "failures":[]
+            "failures":[],
+            "skips":[]
         },
         {
             "args":["--group=strings"],
-            "failures":[]
+            "failures":[],
+            "skips":[]
         },
         {
             "args":["--show-plan"],
-            "failures":[]
+            "failures":[],
+            "skips":[]
         },
         {
             "args":["--verbosity=4"],
-            "failures":[]
+            "failures":[],
+            "skips":[]
         }
     ]
 
@@ -279,12 +302,21 @@ class Example1(object):
     runs = [
         {
             "args":[],
-            "failures":[]
+            "failures":[],
+            "skips":["Delete the user."],
         },
         {
             "args":[],
             "failures":[
-                "Creates a local database and starts up the web service."]
+                "Creates a local database and starts up the web service."],
+            "skips":[
+            "proboscis.case.FunctionTest (create_user)",
+            "proboscis.case.FunctionTest (user_cant_connect_with_wrong_password)",
+            "Make sure the given client cannot perform admin actions..",
+            "Make sure the given client cannot perform admin actions..",
+            "Test changing a client's profile image.",
+            "Delete the user.",
+            ]
         }
     ]
 
@@ -311,12 +343,20 @@ class Example2(Example1):
     runs = [
         {
             "args":[],
-            "failures":[]
+            "failures":[],
+            "skips":[]
         },
         {
             "args":[],
             "failures":[
-                "Starts up the web service."]
+                "Starts up the web service."],
+            "skips":["proboscis.case.FunctionTest (create_user)",
+            "proboscis.case.FunctionTest (user_cant_connect_with_wrong_password)",
+            "Make sure the given client cannot perform admin actions..",
+            "Make sure the given client cannot perform admin actions..",
+            "Test changing a client's profile image.",
+            "proboscis.case.FunctionTest (delete_user)"
+            ]
         }
     ]
 
@@ -340,12 +380,19 @@ class Example3(Example1):
     runs = [
         {
             "args":[],
-            "failures":[]
+            "failures":[],
+            "skips":[]
         },
         {
             "args":[],
             "failures":[
-                "Create a user."]
+                "Create a user."],
+            "skips":["Test changing a client's profile image.",
+                "proboscis.case.MethodTest (delete_user)",
+                "Make sure the given client cannot perform admin actions..",
+                "Make sure the given client cannot perform admin actions..",
+                "proboscis.case.MethodTest (cant_login_with_wrong_password)",
+                "proboscis.case.MethodTest (successful_login)"]
         }
     ]
 
@@ -371,13 +418,24 @@ class Example4(Example1):
     runs = [
         {
             "args":[],
-            "failures":[]
+            "failures":[],
+            "skips":[]
         },
         {
             "args":[],
             "failures":[
                 "Create a user.",
-                "Create a user."]
+                "Create a user."],
+            "skips":["Test changing a client's profile image.",
+                "Test changing a client's profile image.",
+                "proboscis.case.MethodTest (delete_user)",
+                "proboscis.case.MethodTest (delete_user)",
+                "Make sure the given client cannot perform admin actions..",
+                "Make sure the given client cannot perform admin actions..",
+                "Make sure the given client cannot perform admin actions..",
+                "Make sure the given client cannot perform admin actions..",
+                "proboscis.case.MethodTest (successful_login)",
+                "proboscis.case.MethodTest (successful_login)"]
         }
     ]
 
@@ -403,7 +461,8 @@ class ExampleF(Example1):
     runs = [
         {
             "args":[],
-            "failures":[]
+            "failures":[],
+            "skips":[]
         }
     ]
 
@@ -428,7 +487,8 @@ def run_all(root="."):
     ExampleRunner(root, Example2())
     ExampleRunner(root, Example3())
     ExampleRunner(root, Example4())
-    ExampleRunner(root, ExampleF())
+    if CAN_USE_WITH:
+        ExampleRunner(root, ExampleF())
 
 
 if __name__ == '__main__':
