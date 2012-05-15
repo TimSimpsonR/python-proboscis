@@ -141,7 +141,7 @@ def assert_not_equal(actual, expected, message=None):
     :param expected: The expected value.
     :param message: The assertion message if the variables are equal.
     """
-    if actual != expected:
+    if (actual != expected) and not (actual == expected):
         return
     if not message:
         try:

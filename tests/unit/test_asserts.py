@@ -11,10 +11,17 @@ from proboscis.asserts import assert_is_not_none
 from proboscis.asserts import assert_true
 from proboscis.asserts import assert_raises
 from proboscis.asserts import assert_raises_instance
+from proboscis.compatability import capture_exception
 from proboscis.asserts import fail
 
 
 class BadClass(object):
+
+    def __init__(self, value=5):
+        self.value = value
+
+    def __eq__(self, rhs):
+        return self.value == rhs.value
 
     def __str__(self):
         raise RuntimeError()
@@ -30,10 +37,12 @@ class TestAsserts(unittest.TestCase):
         self.assertRaises(ASSERTION_ERROR, func, *args, **kwargs)
 
     def fails_m(self, message, func, *args, **kwargs):
-        try:
+        def try_block():
             func(*args, **kwargs)
-        except ASSERTION_ERROR as ae:
-            self.assertEqual(message, str(ae))
+        ae = capture_exception(try_block, ASSERTION_ERROR)
+        self.assertTrue(ae is not None)
+        self.assertTrue(type(ae) is ASSERTION_ERROR)
+        self.assertEqual(message, str(ae))
 
     def test_equal1(self):
         assert_equal(2,2)
@@ -46,7 +55,7 @@ class TestAsserts(unittest.TestCase):
 
     def test_equal4(self):
         self.fails_m("The actual value did not equal the expected one.",
-                     assert_equal, BadClass(), BadClass())
+                     assert_equal, BadClass(3), BadClass(7))
 
     def test_false1(self):
         assert_false(False)
@@ -104,11 +113,10 @@ class TestAsserts(unittest.TestCase):
         self.fails(assert_is_not_none, None)
 
     def test_is_not_none3(self):
-        self.fails_m("Blah!", assert_is_none, None, "Blah!")
+        assert_is_none(None, "Blah!")
 
     def test_is_not_none4(self):
-        self.fails_m("The value is not None.",
-                     assert_is_not_none, BadClass())
+        assert_is_not_none(BadClass())
 
     def test_not_equal1(self):
         assert_not_equal(2,4)
@@ -121,7 +129,7 @@ class TestAsserts(unittest.TestCase):
 
     def test_not_equal4(self):
         self.fails_m("The actual value equalled the expected one.",
-                     assert_not_equal, BadClass(), BadClass())
+                     assert_not_equal, BadClass(2), BadClass(2))
 
     def test_true1(self):
         assert_true(True)
@@ -153,9 +161,14 @@ class TestAsserts(unittest.TestCase):
     def test_assert_raises4(self):
         def not_precise():
             raise Exception("HELLO!!")
-        try:
+        def try_block():
             assert_raises(RuntimeError, not_precise)
-        except Exception as ex:
-            # Make sure we're getting the original.
-            self.assertEquals("HELLO!!", str(ex))
+        ex = capture_exception(try_block, Exception)
+        self.assertTrue(ex is not None)
+        self.assertTrue(type(ex) is Exception)
+        # Make sure assert_raises gives us the original exception.
+        self.assertEqual("HELLO!!", str(ex))
 
+
+if __name__ == '__main__':
+    unittest.main()

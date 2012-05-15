@@ -41,6 +41,16 @@ Features
 Updates
 -------
 
+Version 1.2.5
+~~~~~~~~~~~~~
+
+- Implemented test decorator property "runs_after", which affects only the
+  order of test runs. If a test noted by "runs_after" fails, the test method
+  or class targeted by the decorator will *not* be skipped. If a group is run,
+  tests which are listed in "runs_after" will not implicitly be run as well.
+- Added 'fail' method to Checker class.
+- Using tox discovered some issues with Jython compatability.
+
 Version 1.2.4
 ~~~~~~~~~~~~~
 
