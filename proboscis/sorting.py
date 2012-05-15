@@ -18,6 +18,13 @@ This module is home to Proboscis's sorting algorithms.
 
 from collections import deque
 
+class Dependent(object):
+
+    def __init__(self, case, critical):
+        self.case = case
+        self.critical = critical
+
+
 class TestNode:
     """Representation of a TestEntry used in sorting."""
     def __init__(self, case):
@@ -25,7 +32,7 @@ class TestNode:
         self.dependencies = []
         self.dependents = []
 
-    def add_dependency(self, node):
+    def add_dependency(self, node, is_critical):
         """Adds a bidirectional link between this node and a dependency.
 
         This also informs the dependency TestEntry of its dependent.  It is
@@ -38,7 +45,7 @@ class TestNode:
             return
         self.dependencies.append(node)
         node.dependents.append(self)
-        node.case.dependents.append(self.case)
+        node.case.dependents.append(Dependent(self.case, is_critical))
 
     @property
     def has_no_dependencies(self):
@@ -71,14 +78,25 @@ class TestGraph:
         for case in cases:
             self.nodes.append(TestNode(case))
         for node in self.nodes:
-            for dependency_group in node.case.entry.info.depends_on_groups:
+            n_info = node.case.entry.info
+
+            for dependency_group in n_info.runs_after_groups:
                 d_group_nodes = self.nodes_for_group(dependency_group)
                 for dependency_group_node in d_group_nodes:
-                    node.add_dependency(dependency_group_node)
-            for dependency in node.case.entry.info.depends_on:
+                    node.add_dependency(dependency_group_node, False)
+            for dependency_group in n_info.depends_on_groups:
+                d_group_nodes = self.nodes_for_group(dependency_group)
+                for dependency_group_node in d_group_nodes:
+                    node.add_dependency(dependency_group_node, True)
+
+            for dependency in n_info.runs_after:
                 d_nodes = self.nodes_for_class_or_function(dependency)
                 for dependency_node in d_nodes:
-                    node.add_dependency(dependency_node)
+                    node.add_dependency(dependency_node, False)
+            for dependency in n_info.depends_on:
+                d_nodes = self.nodes_for_class_or_function(dependency)
+                for dependency_node in d_nodes:
+                    node.add_dependency(dependency_node, True)
 
     def nodes_for_class_or_function(self, test_home):
         """Returns nodes attached to the given class."""

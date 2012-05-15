@@ -28,6 +28,8 @@ from proboscis.asserts import assert_raises_instance
 from proboscis.asserts import assert_is_none
 from proboscis.asserts import ASSERTION_ERROR
 from proboscis.compatability import capture_exception
+from proboscis.compatability import raise_with_traceback
+from proboscis.asserts import fail
 
 
 def get_stack_trace_of_caller(level_up):
@@ -73,7 +75,6 @@ class Check(object):
     raise instantly.
     """
 
-
     def __init__(self):
         self.messages = []
         self.odd = True
@@ -91,22 +92,6 @@ class Check(object):
         msg = '\n'.join([start, middle, end])
         self.messages.append(msg)
         self.odd = not self.odd
-
-    def equal(self, *args, **kwargs):
-        """Identical to assert_equal."""
-        self._run_assertion(assert_equal, *args, **kwargs)
-
-    def false(self, *args, **kwargs):
-        """Identical to assert_false."""
-        self._run_assertion(assert_false, *args, **kwargs)\
-
-    def fail(self, *args, **kwargs):
-        """Identical to assert_false."""
-        self._run_assertion(assert_false, *args, **kwargs)\
-
-    def not_equal(self, *args, **kwargs):
-        """Identical to assert_not_equal."""
-        _run_assertion(assert_not_equal, *args, **kwargs)
 
     def _run_assertion(self, assert_func, *args, **kwargs):
         """
@@ -135,15 +120,12 @@ class Check(object):
             final_message = '\n'.join(self.messages)
         if _type is not None:  # An error occurred
             if len(self.messages) == 0:
-                raise _type, value, tb
+                raise_with_traceback(_type, value, tb)
             self._add_exception(_type, value, traceback.extract_tb(tb))
         if len(self.messages) != 0:
             final_message = '\n'.join(self.messages)
             raise ASSERTION_ERROR(final_message)
 
-    def true(self, *args, **kwargs):
-        """Identical to assert_true."""
-        self._run_assertion(assert_true, *args, **kwargs)
 
 def add_assert_method(name, func):
     def f(self, *args, **kwargs):
@@ -161,4 +143,4 @@ add_assert_method("is_not", assert_is_not)
 add_assert_method("is_not_none", assert_is_not_none)
 add_assert_method("raises", assert_raises)
 add_assert_method("raises_instance", assert_raises_instance)
-
+add_assert_method("fail", fail)

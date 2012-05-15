@@ -14,23 +14,5 @@
 #    under the License.
 
 
-def capture_exception(body_func, *except_type):
-    try:
-        body_func()
-        return None
-    except except_type, e:
-        return e
-
-
-def capture_type_error(func):
-    try:
-        func()
-    except TypeError, te:
-        msg = str(te)
-        if ("takes exactly 1 argument" in msg and "(0 given)" in msg) \
-            or "instance as first argument (got nothing instead)" in msg:
-            from proboscis.core import ProboscisTestMethodClassNotDecorated
-            raise ProboscisTestMethodClassNotDecorated()
-        else:
-            raise
-
+def raise_with_traceback(_type, exception, traceback):
+    raise _type, exception, traceback

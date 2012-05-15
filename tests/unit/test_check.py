@@ -25,9 +25,22 @@ from proboscis.asserts import assert_raises
 from proboscis.asserts import assert_true
 from proboscis.asserts import assert_false
 from proboscis.asserts import fail
+from proboscis.check import get_stack_trace_of_caller
 
 
-class TestChecker(unittest.TestCase):
+class TestCheckerNoWithBlock(unittest.TestCase):
+
+    def test_should_simply_raise(self):
+        check = Check()
+        assert_raises(ASSERTION_ERROR, check.equal, "HI", "BYE")
+
+
+class TestCheckerWithBlock(unittest.TestCase):
+
+    def test_when_no_failures_occur_nothing_happens(self):
+        with Check() as check:
+            print("CEHCK:%s" % check)
+            check.equal("HI", "HI")
 
     def test_when_no_failures_occur_nothing_happens(self):
         with Check() as check:
@@ -84,6 +97,10 @@ class TestChecker(unittest.TestCase):
             assert_true("RuntimeError: Unexplained error!" in msg, msg)
 
 
+class TestOverShortenStackTrace(unittest.TestCase):
+
+    def test_should_cut_down_to_zero_and_not_raise(self):
+        get_stack_trace_of_caller(830)
 
 
 if __name__ == "__main__":

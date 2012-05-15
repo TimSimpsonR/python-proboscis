@@ -14,159 +14,73 @@ at the end of the test.
 
 """
 
-from datetime import datetime
-import random
-import types
-import unittest
-import mymodule
-from proboscis.asserts import assert_equal
-from proboscis.asserts import assert_false
-from proboscis.asserts import assert_raises
-from proboscis.asserts import assert_true
 from proboscis import after_class
 from proboscis import before_class
-from proboscis import SkipTest
+from proboscis import factory
 from proboscis import test
+from proboscis.asserts import assert_equal
+from proboscis.asserts import assert_is_none
 
-db_config = {
-    "url": "test.db.mycompany.com",
-    "user": "service_admin",
-    "password": "pass"
-}
-
+from spam_api import create_admin_api
+from spam_api import create_api
+from spam_api import SpamHttpException
 
 
 @test
-def initialize_database():
-    """Creates a local database."""
-    mymodule.create_database()
-    assert_true(mymodule.tables_exist())
+class UserPermissionsTest(object):
 
-@test(depends_on=[initialize_database])
-def initialize_web_server():
-    """Starts up the web service."""
-    mymodule.start_web_server()
-    admin = mymodule.get_admin_client()
-    assert_true(admin.service_is_up)
-
-
-class UserTests(object):
-
-    def __init__(self, user_type):
-        self.expected_user_type = user_type
-
-    def generate_new_user_config(self):
-        """Constructs the dictionary needed to make a new user."""
-        new_user_config = {
-            "username": "TEST_%s_%s" % (datetime.now(), random.randint(0, 256)),
-            "password": "password",
-            "type":self.expected_user_type
-        }
-        return new_user_config
+    def __init__(self, config):
+        self.user_type = config['user_type']
+        self.create = config['create'] or None
+        self.delete = config['delete'] or None
+        self.read = config['read'] or None
 
     @before_class
     def create_user(self):
-        """Create a user."""
-        random.seed()
-        global test_user
-        test_user = None
-        new_user_config = self.generate_new_user_config()
-        admin = mymodule.get_admin_client()
-        self.test_user = admin.create_user(new_user_config)
-        assert_equal(self.test_user.username, new_user_config["username"])
-        assert_true(self.test_user.id is not None)
-        assert_true(isinstance(self.test_user.id, (types.IntType,
-                                                   types.LongType)))
-
-    @after_class(always_run=True)
-    def delete_user(self):
-        if self.test_user is None:
-            raise SkipTest("User tests were never run.")
-        admin = mymodule.get_admin_client()
-        admin.delete_user(self.test_user.id)
-        assert_raises(mymodule.UserNotFoundException, mymodule.login,
-                    {'username':self.test_user.username, 'password':'password'})
-
-    def cant_login_with_wrong_password(self):
-        assert_raises(mymodule.UserNotFoundException, mymodule.login,
-                      {'username':self.test_user.username, 'password':'blah'})
+        self.admin_api = create_admin_api()
+        user = self.admin_api.user.create(self.user_type)
+        self.user_id = user.id
+        self.api = create_api(self.user_id)
 
     @test
-    def successful_login(self):
-        self.client = mymodule.login({
-            'username':self.test_user.username, 'password':'password'})
+    def test_create(self):
+        try:
+            self.spam = self.api.spam.create()
+            assert_is_none(self.create)
+        except SpamHttpException as she:
+            self.spam = self.admin_api.spam.create()
+            assert_equal(she.status_code, self.create)
 
-    @test(depends_on=[successful_login])
-    def change_profile_image(self):
-        """Test changing a client's profile image."""
-        assert_equal("default.jpg", self.client.get_profile_image())
-        self.client.set_profile_image("spam.jpg")
-        assert_equal("spam.jpg", self.client.get_profile_image())
+    @test(depends_on=[test_create])
+    def test_read(self):
+        try:
+            spam = self.api.spam.get(self.spam.id)
+            assert_is_none(self.read)
+            assert_equal(spam, self.spam)
+        except SpamHttpException as she:
+            assert_equal(she.status_code, self.read)
 
+    @test(depends_on=[test_create, test_read])
+    def test_delete(self):
+        try:
+            self.api.spam.delete(self.spam.id)
+            assert_is_none(self.delete)
+        except SpamHttpException as she:
+            assert_equal(she.status_code, self.delete)
 
-    @test(depends_on=[successful_login])
-    def create_users(self):
-        """Make sure the given client cannot perform admin actions.."""
-        if self.expected_user_type == 'normal':
-            assert_raises(mymodule.AuthException, self.client.create_user,
-                          self.generate_new_user_config())
-        else:
-            pass
-
-
-    @test(depends_on=[successful_login])
-    def delete_users(self):
-        """Make sure the given client cannot perform admin actions.."""
-        assert_raises(mymodule.AuthException, self.client.delete_user,
-                      self.test_user.id)
-
+    @after_class
+    def delete_user(self):
+        self.admin_api.user.delete(self.user_id)
 
 
 @factory
 def generate_user_tests():
-    return [ClientTest(config) for config in service_configs]
-
-
-
-
-
-@test(groups=["user", "service.tests"])
-class AdminUserTests(UserTests):
-
-    @staticmethod
-    def generate_new_user_config():
-        """Constructs the dictionary needed to make a new user."""
-        new_user_config = {
-            "username": "TEST_%s_%s" % (datetime.now(), random.randint(0, 256)),
-            "password": "password",
-            "type":"admin"
-        }
-        return new_user_config
-
-    @test(depends_on=[UserTests.successful_login])
-    def an_admin_user_can_create_users(self):
-        """Make sure the given client cannot perform admin actions.."""
-        self.new_user = self.client.create_user(self.generate_new_user_config())
-        # Make sure it actually logs in.
-        self.new_user_client = mymodule.login({
-            'username':self.new_user.username, 'password':'password'})
-
-    @test(depends_on=[an_admin_user_can_create_users])
-    def an_admin_user_can_delete_users(self):
-        """Make sure the given client cannot perform admin actions.."""
-        self.client.delete_user(self.new_user.id)
-
-
-# Add more tests in the service.tests group here, or in any other file.
-# Then when we're finished...
-
-@test(groups=["service.shutdown"], depends_on_groups=["service.tests"],
-      always_run=True)
-def shut_down():
-    """Shut down the web service and destroys the database."""
-    admin = mymodule.get_admin_client()
-    if admin.service_is_up:
-        mymodule.stop_web_server()
-        assert_false(admin.service_is_up())
-    mymodule.destroy_database()
-
+    user_configs = [
+        { 'user_type': "anonymous",
+          'create':401, 'read':401, 'delete': 401 },
+        { 'user_type': "restricted",
+          'create':401, 'read':None, 'delete': 401 },
+        { 'user_type': "normal",
+          'create':None, 'read':None, 'delete': None }
+    ]
+    return [UserPermissionsTest(config) for config in user_configs]

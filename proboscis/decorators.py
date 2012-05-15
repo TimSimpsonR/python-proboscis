@@ -149,7 +149,5 @@ def factory(func=None, **kwargs):
     if func:
         return DEFAULT_REGISTRY.register_factory(func)
     else:
-        def cb_method(func_2):
-            return DEFAULT_REGISTRY.register_factory(func_2, **kwargs)
-        return cb_method
+        raise ValueError("Arguments not supported on factories.")
 

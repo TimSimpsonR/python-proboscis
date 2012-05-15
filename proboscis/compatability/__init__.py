@@ -16,22 +16,26 @@
 import sys
 
 if sys.version_info >= (2, 6):
-    from proboscis.compatability._2_6 import capture_exception
-    from proboscis.compatability._2_6 import capture_type_error
+    from proboscis.compatability.exceptions_2_6 import capture_exception
+    from proboscis.compatability.exceptions_2_6 import capture_type_error
 else:
-    from proboscis.compatability._2_5 import capture_exception
-    from proboscis.compatability._2_5 import capture_type_error
+    from proboscis.compatability.exceptions_2_5 import capture_exception
+    from proboscis.compatability.exceptions_2_5 import capture_type_error
 
 
 if sys.version_info >= (3, 0):
     import imp
     reload = imp.reload
+    from proboscis.compatability.raise_3_x import raise_with_traceback
 else:
     reload = reload
+    from proboscis.compatability.raise_2_x import raise_with_traceback
 
+_IS_JYTHON = "Java" in str(sys.version) or hasattr(sys, 'JYTHON_JAR')
 
 def is_jython():
-    return hasattr(sys, 'JYTHON_JAR')
+    return _IS_JYTHON
+
 
 def supports_time_out():
     if is_jython():

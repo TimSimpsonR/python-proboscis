@@ -20,3 +20,4 @@ covhtml
 docs/build/*
 *.class
 .coverage
+.tox

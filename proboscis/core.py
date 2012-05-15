@@ -69,6 +69,7 @@ class TestEntryInfo:
                  depends_on_groups=None,
                  enabled=None,
                  always_run=False,
+                 runs_after_groups=None,
                  runs_after=None,
                  run_before_class=False,
                  run_after_class=False):
@@ -77,11 +78,13 @@ class TestEntryInfo:
         depends_on_classes = depends_on_classes or []
         depends_on_groups = depends_on_groups or []
         runs_after = runs_after or []
+        runs_after_groups = runs_after_groups or []
         self.groups = groups
         self.depends_on = set(transform_depends_on_target(target)
                               for target in depends_on_list)
         for cls in depends_on_classes:
             self.depends_on.add(cls)
+        self.runs_after_groups = runs_after_groups
         self.depends_on_groups = depends_on_groups
         self.enabled_was_specified = enabled is not None
         if enabled is None:
@@ -237,10 +240,10 @@ class TestMethodClassEntry(TestEntry):
 
     def contains(self, group_names, classes):
         """True if this belongs to any of the given groups or classes."""
-        if contains_shallow(group_names, classes):
+        if self.contains_shallow(group_names, classes):
             return True
         for entry in self.children:
-            if entry.contains(group_names, classes):
+            if entry.contains(group_names, []):
                 return True
         return False
 
@@ -296,6 +299,8 @@ class TestRegistry(object):
         if entry.home is not None:
             if hasattr(entry.home, '_proboscis_entry_'):
                 # subclasses will get this attribute from their parents.
+                # This if statement is necessary because factories may create
+                # multiple entries per test method.
                 if entry.home._proboscis_entry_.home == entry.home:
                     raise RuntimeError("A test decorator or registration was "
                         "applied twice to the class or function %s." %
