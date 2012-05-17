@@ -251,19 +251,22 @@ class TestResult(TestResultListener, dependencies.TextTestResult):
 
     # I had issues extending TextTestResult directly so resorted to this.
 
-    def __init__(self, stream, descriptions, verbosity, config=None,
-                 errorClasses=None):
+    def __init__(self, *args, **kwargs):
         TestResultListener.__init__(self, dependencies.TextTestResult)
-        dependencies.TextTestResult.__init__(self, stream, descriptions, verbosity,
-                                       config, errorClasses)
+        dependencies.TextTestResult.__init__(self, *args, **kwargs)
 
 
 def test_runner_cls(wrapped_cls, cls_name):
     """Creates a test runner class which uses Proboscis TestResult."""
     new_dict = wrapped_cls.__dict__.copy()
 
-    def cb_make_result(self):
-        return TestResult(self.stream, self.descriptions, self.verbosity)
+    if dependencies.use_nose:
+        def cb_make_result(self):
+            return TestResult(self.stream, self.descriptions, self.verbosity,
+                              self.config)
+    else:
+        def cb_make_result(self):
+            return TestResult(self.stream, self.descriptions, self.verbosity)
     new_dict["_makeResult"] = cb_make_result
     return type(cls_name, (wrapped_cls,), new_dict)
 
