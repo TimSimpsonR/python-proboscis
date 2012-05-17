@@ -16,7 +16,7 @@
 
 .. include:: ../../README.rst
    :start-line: 15
-   :end-line: 60
+   :end-line: 65
 
 
 .. contents:: Contents

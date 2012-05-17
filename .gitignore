@@ -21,3 +21,4 @@ docs/build/*
 *.class
 .coverage
 .tox
+docs/_build/*

@@ -41,8 +41,13 @@ Features
 Updates
 -------
 
-Version 1.2.5
-~~~~~~~~~~~~~
+Version 1.2.5.2
+~~~~~~~~~~~~~~~
+
+- Fixed a bug that prevented some Nose plugins from working.
+
+Version 1.2.5.1
+~~~~~~~~~~~~~~~
 
 - Implemented test decorator property "runs_after", which affects only the
   order of test runs. If a test noted by "runs_after" fails, the test method
