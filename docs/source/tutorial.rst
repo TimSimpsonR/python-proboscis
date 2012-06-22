@@ -38,9 +38,13 @@ because to run the tests it calls Nose which then calls unittest, which calls
 sys.exit() on completion and forces the program to exit).
 
 Normally, all tests are run, but we can use the "--group" command line
-parameter to run only tests in a certain groups run instead:
+parameter to run only a certain group (and the groups it depends on)
+instead:
 
 .. include:: ../build/examples/unit/output/output1.rst
+
+If you want to run multiple specific groups, use the "--group"
+parameter more than once.
 
 You can also use the "--show-plan" argument to get a preview of how Proboscis
 will run the tests:

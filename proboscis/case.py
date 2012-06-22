@@ -137,7 +137,7 @@ class TestPlan(object):
         return suite
 
     def filter(self, group_names=None, classes=None, functions=None):
-        """Whittles down test list to hose matching criteria."""
+        """Whittles down test list to those matching criteria."""
         test_homes = []
         classes = classes or []
         functions = functions or []
