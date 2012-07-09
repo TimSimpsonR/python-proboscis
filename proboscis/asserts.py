@@ -220,3 +220,17 @@ def fail(message):
 
 
 from proboscis.check import Check
+
+__all__ = [
+    'assert_equal',
+    'assert_false',
+    'assert_is',
+    'assert_is_none',
+    'assert_is_not',
+    'assert_is_not_none',
+    'assert_not_equal',
+    'assert_true',
+    'assert_raises',
+    'assert_raises_instance',
+    'fail',
+]
