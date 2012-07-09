@@ -4,9 +4,11 @@ import time
 import unittest
 
 
+from proboscis.asserts import assert_equal
 from proboscis.asserts import assert_raises
 from proboscis.asserts import assert_true
 from proboscis.asserts import assert_false
+from proboscis.asserts import fail
 from proboscis import compatability
 from proboscis import decorators
 from proboscis.decorators import expect_exception
@@ -76,10 +78,119 @@ class TestClassDecoratorInheritanceForEnabled(ProboscisRegistryTest):
                 pass
 
         for t in self.registry.tests:
+            if t.home is ExampleTest:
+                assert_false(t.info.enabled)
+            elif t.home is ExampleTest.test_1.im_func:
+                assert_false(t.info.enabled)
+            else:
+                fail("Unexpected test seen in iteration: %s" % t)
+
+
+class TestClassDecoratorInheritanceForRunsAfter(ProboscisRegistryTest):
+
+    def test_if_not_set_on_parent_func_is_unaffected(self):
+        from proboscis import test
+
+        @test
+        def other_test():
+            pass
+
+        @test
+        class ExampleTest(object):
+            @test(runs_after=[other_test])
+            def test_1(self):
+                pass
+
+        for t in self.registry.tests:
+            if t.home is ExampleTest:
+                assert_equal(0, len(t.info.runs_after))
+            elif t.home is ExampleTest.test_1.im_func:
+                assert_equal(1, len(t.info.runs_after))
+                assert_true(other_test in t.info.runs_after)
+            elif t.home is not other_test:
+                fail("Unexpected test seen in iteration: %s" % t)
+
+    def test_if_set_on_parent_func_adds_parent_items_to_list(self):
+        from proboscis import test
+
+        @test
+        def other_test():
+            pass
+
+        @test
+        def yet_another_test():
+            pass
+
+        @test(runs_after=[yet_another_test])
+        class ExampleTest(object):
+            @test(runs_after=[other_test])
+            def test_1(self):
+                pass
+
+        for t in self.registry.tests:
+            if t.home is ExampleTest:
+                assert_equal(1, len(t.info.runs_after))
+                assert_true(yet_another_test in t.info.runs_after)
+            elif t.home is ExampleTest.test_1.im_func:
+                assert_equal(2, len(t.info.runs_after))
+                expected_homes = {other_test:False, yet_another_test:False}
+                for home in t.info.runs_after:
+                    if home not in expected_homes.keys():
+                        fail("%s should not be in runs_after" % home)
+                    expected_homes[home] = True
+                for expected_home, found in expected_homes.items():
+                    if not found:
+                        fail("%s was not found in runs_after" % expected_home)
+            elif t.home not in (other_test, yet_another_test):
+                fail("Unexpected test seen in iteration: %s" % t)
+
+
+class TestClassDecoratorInheritanceForRunsAfterGroups(ProboscisRegistryTest):
+
+    def test_if_not_set_on_parent_func_is_unaffected(self):
+        from proboscis import test
+
+        @test
+        class ExampleTest(object):
+            @test(runs_after_groups=["other_test"])
+            def test_1(self):
+                pass
+
+        for t in self.registry.tests:
             if t.home == ExampleTest:
-                assert_false(t.info.enabled)
-            if t.home == ExampleTest.test_1:
-                assert_false(t.info.enabled)
+                assert_equal(0, len(t.info.runs_after_groups))
+            elif t.home == ExampleTest.test_1.im_func:
+                assert_equal(1, len(t.info.runs_after_groups))
+                assert_true("other_test" in t.info.runs_after_groups)
+            else:
+                fail("Unexpected test seen in iteration: %s" % t)
+
+    def test_if_set_on_parent_func_adds_parent_items_to_list(self):
+        from proboscis import test
+
+        @test(runs_after_groups=["yet_another_test"])
+        class ExampleTest(object):
+            @test(runs_after_groups=["other_test"])
+            def test_1(self):
+                pass
+
+        for t in self.registry.tests:
+            if t.home == ExampleTest:
+                assert_equal(1, len(t.info.runs_after_groups))
+                assert_true("yet_another_test" in t.info.runs_after_groups)
+            elif t.home == ExampleTest.test_1.im_func:
+                assert_equal(2, len(t.info.runs_after_groups))
+                expected_homes = {"other_test":False, "yet_another_test":False}
+                for home in t.info.runs_after_groups:
+                    if home not in expected_homes.keys():
+                        fail("%s should not be in runs_after_groups" % home)
+                    expected_homes[home] = True
+                for expected_home, found in expected_homes.items():
+                    if not found:
+                        fail("%s was not found in runs_after_groups"
+                             % expected_home)
+            else:
+                fail("Unexpected test seen in iteration: %s" % t)
 
 
 class TestClassDecoratorInheritanceForAlwaysRun(ProboscisRegistryTest):

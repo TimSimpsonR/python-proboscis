@@ -121,6 +121,9 @@ class TestEntryInfo:
         for item in parent_entry.runs_after:
             if item not in self.runs_after:
                 self.runs_after.add(item)
+        for item in parent_entry.runs_after_groups:
+            if item not in self.runs_after_groups:
+                self.runs_after_groups.append(item)
         if parent_entry.enabled_was_specified and \
             not self.enabled_was_specified:
             self.enabled = parent_entry.enabled

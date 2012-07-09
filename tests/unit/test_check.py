@@ -39,12 +39,10 @@ class TestCheckerWithBlock(unittest.TestCase):
 
     def test_when_no_failures_occur_nothing_happens(self):
         with Check() as check:
-            print("CEHCK:%s" % check)
             check.equal("HI", "HI")
 
     def test_when_no_failures_occur_nothing_happens(self):
         with Check() as check:
-            print("CEHCK:%s" % check)
             check.equal("HI", "HI")
 
     def test_single_failure_is_presented(self):
