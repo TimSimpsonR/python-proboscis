@@ -5,33 +5,53 @@ class BeforeAndAfter(object):
     def getName(self):
         return str(type(self))
 
-    def println(self, msg):
-        print("%s : %s" % (self.getName(), msg))
+    def bad(self):
+        print("FAILURE! This should not print!")
 
-
+@test
 class BeforeAndAfterSuccess(BeforeAndAfter):
 
     @before_class
     def beforeEverything(self):
-        self.println("@BeforeClass");
+        pass
 
 
-    @before_method
-    def setUp(self):
-        self.println("@BeforeMethod")
+    # @before_method
+    # def setUp(self):
+    #     self.println("@BeforeMethod")
 
     @test
     def method1(self):
-        self.println("@Test 1")
+        pass
 
     @test
     def method2(self):
-        self.println("@Test 2")
+        pass
 
     @after_class
     def afterEverything(self):
-        self.println("@AfterClass")
+        pass
 
-    @after_method
-    def tearDown(self):
-        self.println("@AfterMethod")
+    # @after_method
+    # def tearDown(self):
+    #     self.println("@AfterMethod")
+
+@test(groups= ["BeforeAndAfter"])
+class BeforeClassFailure(BeforeAndAfter):
+
+    @before_class
+    def beforeEverything(self):
+        assert false
+
+    @test
+    def method1(self):
+        self.bad()
+
+    @test
+    def method2(self):
+        self.bad()
+
+
+    @after_class
+    def afterEverything(self):
+        self.bad()

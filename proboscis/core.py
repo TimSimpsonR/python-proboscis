@@ -391,14 +391,25 @@ class TestRegistry(object):
                         before_class_methods.append(entry)
                     elif entry.info.after_class:
                         after_class_methods.append(entry)
+        # "before_class" adds a dependency of itself to every test method
+        # in the class, except other before_class and after_class methods.
         for before_entry in before_class_methods:
             for test_entry in test_entries:
-                if not test_entry.info.before_class:
+                if not test_entry.info.before_class and \
+                   not test_entry.info.after_class:
                     test_entry.info.depends_on.add(before_entry.home)
+        # "after_entry" depends on every other method in the class - if any
+        # fail, it will be skipped. Howver, if "always_run" is true, it will
+        # just run after them (even if before_class method fails). This
+        # behavior is consistent with TestNG.
         for after_entry in after_class_methods:
+            if after_entry.info.always_run:
+                collection = after_entry.info.runs_after
+            else:
+                collection = after_entry.info.depends_on
             for test_entry in test_entries:
                 if not test_entry.info.after_class:
-                    after_entry.info.depends_on.add(test_entry.home)
+                    collection.add(test_entry.home)
         entry = TestMethodClassEntry(cls, info, test_entries)
         self._register_entry(entry)
         return entry.home

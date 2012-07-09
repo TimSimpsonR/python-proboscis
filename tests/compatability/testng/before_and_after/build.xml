@@ -16,7 +16,7 @@
   </target>
 
   <target name="test" depends="compile">
-    <testng classpathref="cp" groups="BeforeAndAfter">
+    <testng classpathref="cp" groups="abc">
       <classfileset dir="build/classes" includes="**/*.class"/>
      <!--  <xmlfileset dir="" includes="testng.xml"/> -->
     </testng>

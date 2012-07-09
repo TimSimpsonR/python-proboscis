@@ -3,9 +3,10 @@ import org.testng.annotations.*;
 @Test(groups= {"BeforeAndAfter"})
 public class BeforeMethodFailure extends BeforeAndAfter  {
 
-    @BeforeClass
+    @BeforeClass(alwaysRun=true)
     public void beforeEverything() {
         println("@BeforeClass");
+        assert false;
     }
 
     @BeforeMethod
@@ -14,7 +15,7 @@ public class BeforeMethodFailure extends BeforeAndAfter  {
         assert false;
     }
 
-    @Test
+    @Test(groups={"abc"})
     public void method1() {
         println("@Test 1");
     }
@@ -24,7 +25,7 @@ public class BeforeMethodFailure extends BeforeAndAfter  {
         println("@Test 2");
     }
 
-    @AfterClass
+    @AfterClass(alwaysRun=true)
     public void afterEverything() {
         println("@AfterClass");
     }
