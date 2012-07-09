@@ -232,4 +232,5 @@ __all__ = [
     'assert_true',
     'assert_raises',
     'assert_raises_instance',
+    'fail',
 ]
