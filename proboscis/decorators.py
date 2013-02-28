@@ -135,9 +135,11 @@ def before_class(home=None, **kwargs):
 def after_class(home=None, **kwargs):
     """Like @test but indicates this should run after other class methods.
 
-    This will run even if methods inside the class fail.
-
     All of the arguments sent to @test work with this decorator as well.
+
+    This will be skipped if a class method test fails;
+    set always_run if that is not desired. See `issue #5
+    <https://github.com/rackspace/python-proboscis/issues/5>`__.
 
     """
     kwargs.update({'run_after_class':True})
