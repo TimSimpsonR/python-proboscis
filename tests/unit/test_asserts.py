@@ -146,7 +146,8 @@ class TestAsserts(unittest.TestCase):
     def test_assert_raises1(self):
         def correct():
             raise RuntimeError()
-        assert_raises(RuntimeError, correct)
+        re = assert_raises(RuntimeError, correct)
+        assert_equal(type(re), RuntimeError)
 
     def test_assert_raises2(self):
         def not_correct():

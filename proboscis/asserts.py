@@ -186,6 +186,7 @@ def assert_raises(exception_type, function, *args, **kwargs):
         info = traceback.format_list(traceback.extract_tb(tb))
         fail("Expected a raised exception of type %s, but found type %s. "
             "%s" % (exception_type, type(actual_exception), info))
+    return actual_exception
 
 
 def assert_raises_instance(exception_type, function, *args, **kwargs):
