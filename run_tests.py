@@ -53,10 +53,10 @@ def reload_proboscis():
         if e:
             if (str(type(e)) == str(except_type)):
                 return e
-            else:
-                raise
+            raise e
         return None
     proboscis.compatability.capture_exception = new_cap_ex
+
 
 class FailureLines(object):
     """Tallies expected and actual occurrences of lines in output."""
@@ -82,9 +82,10 @@ class FailureLines(object):
         assert_equal(str(info["expected"]).strip(),
                      str(info["actual"]).strip(),
                 "In %s, expected to see failure for \"%s\" %d time(s) but saw "
-                "it %d time(s).  Additional info for this test: %s" %
+                "it %d time(s).  File: %s "
+                "Additional info for this test: %s" %
                 (self.source_file, line, info["expected"], info["actual"],
-                 str(self.failures)))
+                 self.source_file, str(self.failures)))
 
     def get(self, line):
         if line not in self.failures:
@@ -161,7 +162,7 @@ class ExampleRunner(object):
         self.base_directory = join(root, "docs", "build", "examples",
                                    test.base_directory)
         self.rst_directory = join(self.base_directory, "source")
-        self.src_directory = join(root, "tests", "examples")
+        self.src_directory = join(root, "examples")
 
         self.create_rst_from_source()
         for (index, run_info) in enumerate(test.runs):
@@ -288,9 +289,9 @@ class UnitTestExample(object):
                     join("tests", "unit.py")]
 
     def run(self, index):
-        from tests.examples import unit
+        from examples import unit
         sys.path.append(unit.__path__[0])
-        from tests.examples.unit import run_tests as unit_run
+        from examples.unit import run_tests as unit_run
         reload(unit_run)  # Reload to force a new Proboscis
         unit_run.run_tests()
 
@@ -325,14 +326,15 @@ class Example1(object):
                     join("tests", "unit_test.py")]
 
     def run(self, index):
-        from tests.examples import example1
-        sys.path.append(example1.__path__[0])
+        from examples import example1
+        sys.path = example1.__path__ + sys.path
+
         if (index == 1):
             # Change the code during this run to show what happens when the
             # code is busted. This is for an unhappy path example in the docs.
             import mymodule
             mymodule.start_web_server = mymodule.bad_start_web_server
-        from tests.examples.example1 import run_tests as example1_run
+        from examples.example1 import run_tests as example1_run
         example1_run.run_tests()
 
 
@@ -364,12 +366,12 @@ class Example2(Example1):
                     join("tests", "service_tests.py")]
 
     def run(self, index):
-        from tests.examples import example2
-        sys.path.append(example2.__path__[0])
+        from examples import example2
+        sys.path = example2.__path__ + sys.path
         if (index == 1):
             import mymodule
             mymodule.start_web_server = mymodule.bad_start_web_server
-        from tests.examples.example2 import run_tests as example2_run
+        from examples.example2 import run_tests as example2_run
         example2_run.run_tests()
 
 
@@ -400,14 +402,15 @@ class Example3(Example1):
                     join("tests", "service_tests.py")]
 
     def run(self, index):
-        from tests.examples import example2
-        sys.path.append(example2.__path__[0])
+        from examples import example3
+        sys.path = example3.__path__ + sys.path
+
         if index == 1:
             def return_nadda(*args):
                 return None
             import mymodule
             mymodule.UserServiceClient.create_user = return_nadda
-        from tests.examples.example3 import run_tests as example3_run
+        from examples.example3 import run_tests as example3_run
         example3_run.run_tests()
 
 
@@ -443,14 +446,15 @@ class Example4(Example1):
                     join("tests", "service_tests.py")]
 
     def run(self, index):
-        from tests.examples import example2
-        sys.path.append(example2.__path__[0])
+        from examples import example4
+        sys.path = example4.__path__ + sys.path
+
         if index == 1:
             def return_nadda(*args):
                 return None
             import mymodule
             mymodule.UserServiceClient.create_user = return_nadda
-        from tests.examples.example4 import run_tests as example4_run
+        from examples.example4 import run_tests as example4_run
         example4_run.run_tests()
 
 
@@ -470,10 +474,10 @@ class ExampleF(Example1):
                     join("tests", "service_tests.py")]
 
     def run(self, index):
-        from tests.examples import example_factory
+        from examples import example_factory
         sys.path.append(example_factory.__path__[0])
         import spam_api
-        from tests.examples.example_factory import run_tests as exampleF_run
+        from examples.example_factory import run_tests as exampleF_run
         exampleF_run.run_tests()
 
 

@@ -10,6 +10,7 @@ from proboscis.asserts import assert_true
 from proboscis.asserts import assert_false
 from proboscis.asserts import fail
 from proboscis import compatability
+from proboscis.compatability import get_method_function
 from proboscis import decorators
 from proboscis.decorators import expect_exception
 from proboscis.decorators import time_out
@@ -80,7 +81,7 @@ class TestClassDecoratorInheritanceForEnabled(ProboscisRegistryTest):
         for t in self.registry.tests:
             if t.home is ExampleTest:
                 assert_false(t.info.enabled)
-            elif t.home is ExampleTest.test_1.im_func:
+            elif t.home is get_method_function(ExampleTest.test_1):
                 assert_false(t.info.enabled)
             else:
                 fail("Unexpected test seen in iteration: %s" % t)
@@ -104,7 +105,7 @@ class TestClassDecoratorInheritanceForRunsAfter(ProboscisRegistryTest):
         for t in self.registry.tests:
             if t.home is ExampleTest:
                 assert_equal(0, len(t.info.runs_after))
-            elif t.home is ExampleTest.test_1.im_func:
+            elif t.home is get_method_function(ExampleTest.test_1):
                 assert_equal(1, len(t.info.runs_after))
                 assert_true(other_test in t.info.runs_after)
             elif t.home is not other_test:
@@ -131,7 +132,7 @@ class TestClassDecoratorInheritanceForRunsAfter(ProboscisRegistryTest):
             if t.home is ExampleTest:
                 assert_equal(1, len(t.info.runs_after))
                 assert_true(yet_another_test in t.info.runs_after)
-            elif t.home is ExampleTest.test_1.im_func:
+            elif t.home is get_method_function(ExampleTest.test_1):
                 assert_equal(2, len(t.info.runs_after))
                 expected_homes = {other_test:False, yet_another_test:False}
                 for home in t.info.runs_after:
@@ -159,7 +160,7 @@ class TestClassDecoratorInheritanceForRunsAfterGroups(ProboscisRegistryTest):
         for t in self.registry.tests:
             if t.home == ExampleTest:
                 assert_equal(0, len(t.info.runs_after_groups))
-            elif t.home == ExampleTest.test_1.im_func:
+            elif t.home == get_method_function(ExampleTest.test_1):
                 assert_equal(1, len(t.info.runs_after_groups))
                 assert_true("other_test" in t.info.runs_after_groups)
             else:
@@ -178,7 +179,7 @@ class TestClassDecoratorInheritanceForRunsAfterGroups(ProboscisRegistryTest):
             if t.home == ExampleTest:
                 assert_equal(1, len(t.info.runs_after_groups))
                 assert_true("yet_another_test" in t.info.runs_after_groups)
-            elif t.home == ExampleTest.test_1.im_func:
+            elif t.home == get_method_function(ExampleTest.test_1):
                 assert_equal(2, len(t.info.runs_after_groups))
                 expected_homes = {"other_test":False, "yet_another_test":False}
                 for home in t.info.runs_after_groups:

@@ -50,8 +50,7 @@ def initialize_web_server():
     assert_true(admin.service_is_up)
 
 
-@test(groups=["user", "service.tests"])
-class NormalUserTests(object):
+class UserTests(object):
 
     @staticmethod
     def generate_new_user_config():
@@ -74,8 +73,7 @@ class NormalUserTests(object):
         self.test_user = admin.create_user(new_user_config)
         assert_equal(self.test_user.username, new_user_config["username"])
         assert_true(self.test_user.id is not None)
-        assert_true(isinstance(self.test_user.id, (types.IntType,
-                                                   types.LongType)))
+        assert_true(isinstance(self.test_user.id, int))
 
     @after_class(always_run=True)
     def delete_user(self):
@@ -86,7 +84,6 @@ class NormalUserTests(object):
         assert_raises(mymodule.UserNotFoundException, mymodule.login,
                     {'username':self.test_user.username, 'password':'password'})
 
-    @test
     def cant_login_with_wrong_password(self):
         assert_raises(mymodule.UserNotFoundException, mymodule.login,
                       {'username':self.test_user.username, 'password':'blah'})
@@ -97,23 +94,56 @@ class NormalUserTests(object):
             'username':self.test_user.username, 'password':'password'})
 
     @test(depends_on=[successful_login])
-    def a_normal_user_cant_create_users(self):
-        """Make sure the given client cannot perform admin actions.."""
-        assert_raises(mymodule.AuthException, self.client.create_user,
-                      self.generate_new_user_config())
-
-    @test(depends_on=[successful_login])
-    def a_normal_user_cant_delete_users(self):
-        """Make sure the given client cannot perform admin actions.."""
-        assert_raises(mymodule.AuthException, self.client.delete_user,
-                      self.test_user.id)
-
-    @test(depends_on=[successful_login])
     def change_profile_image(self):
         """Test changing a client's profile image."""
         assert_equal("default.jpg", self.client.get_profile_image())
         self.client.set_profile_image("spam.jpg")
         assert_equal("spam.jpg", self.client.get_profile_image())
+
+
+@test(groups=["user", "service.tests"])
+class NormalUserTests(UserTests):
+
+    @test(depends_on=[UserTests.successful_login])
+    def a_normal_user_cant_create_users(self):
+        """Make sure the given client cannot perform admin actions.."""
+        assert_raises(mymodule.AuthException, self.client.create_user,
+                      self.generate_new_user_config())
+
+    @test(depends_on=[UserTests.successful_login])
+    def a_normal_user_cant_delete_users(self):
+        """Make sure the given client cannot perform admin actions.."""
+        assert_raises(mymodule.AuthException, self.client.delete_user,
+                      self.test_user.id)
+
+
+
+@test(groups=["user", "service.tests"])
+class AdminUserTests(UserTests):
+
+    @staticmethod
+    def generate_new_user_config():
+        """Constructs the dictionary needed to make a new user."""
+        new_user_config = {
+            "username": "TEST_%s_%s" % (datetime.now(), random.randint(0, 256)),
+            "password": "password",
+            "type":"admin"
+        }
+        return new_user_config
+
+    @test(depends_on=[UserTests.successful_login])
+    def an_admin_user_can_create_users(self):
+        """Make sure the given client cannot perform admin actions.."""
+        self.new_user = self.client.create_user(self.generate_new_user_config())
+        # Make sure it actually logs in.
+        self.new_user_client = mymodule.login({
+            'username':self.new_user.username, 'password':'password'})
+
+    @test(depends_on=[an_admin_user_can_create_users])
+    def an_admin_user_can_delete_users(self):
+        """Make sure the given client cannot perform admin actions.."""
+        self.client.delete_user(self.new_user.id)
+
 
 # Add more tests in the service.tests group here, or in any other file.
 # Then when we're finished...
@@ -127,4 +157,4 @@ def shut_down():
         mymodule.stop_web_server()
         assert_false(admin.service_is_up())
     mymodule.destroy_database()
-    
+

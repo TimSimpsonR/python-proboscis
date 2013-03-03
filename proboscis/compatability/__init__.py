@@ -13,7 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import inspect
 import sys
+import types
 
 if sys.version_info >= (2, 6):
     from proboscis.compatability.exceptions_2_6 import capture_exception
@@ -27,9 +29,26 @@ if sys.version_info >= (3, 0):
     import imp
     reload = imp.reload
     from proboscis.compatability.raise_3_x import raise_with_traceback
+
+    def get_class_methods(cls):
+        members = inspect.getmembers(cls, inspect.isfunction)
+        return [member[1] for member in members]
+
+    def get_method_function(method):
+        return method
+
+
 else:
     reload = reload
     from proboscis.compatability.raise_2_x import raise_with_traceback
+
+    def get_class_methods(cls):
+        members = inspect.getmembers(cls, inspect.ismethod)
+        return [member[1] for member in members]
+
+    def get_method_function(method):
+        return method.im_func
+
 
 _IS_JYTHON = "Java" in str(sys.version) or hasattr(sys, 'JYTHON_JAR')
 

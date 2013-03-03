@@ -23,8 +23,14 @@ class TestClassMethodEntry(ProboscisRegistryTest):
                 if t.home == ExampleTest:
                     pass
                 elif t.home == ExampleTest.test_1:
-                    check.equal(t.method.im_class, ExampleTest)
-                    check.equal(t.method.im_func, ExampleTest.test_1)
+                    if not t.is_child:
+                        check.fail("Test Entry did not mark method as such!")
+                    else:
+                        check.true(ExampleTest in t.homes,
+                                   "Class was not stored in 'homes' property.")
+                        check.true(ExampleTest.test_1 in t.homes,
+                                   "Method was not stored in 'homes' property.")
+                        check.equal(t.method, ExampleTest.test_1)
                     # Just make sure this doesn't blow up...
                     repr(t)
                 elif t.home == func1:

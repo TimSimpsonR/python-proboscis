@@ -28,7 +28,8 @@ def capture_type_error(func):
     except TypeError as te:
         msg = str(te)
         if ("takes exactly 1 argument" in msg and "(0 given)" in msg) \
-            or "instance as first argument (got nothing instead)" in msg:
+            or ("instance as first argument (got nothing instead)" in msg) \
+            or ("missing 1 required positional argument" in msg):
             from proboscis.core import ProboscisTestMethodClassNotDecorated
             raise ProboscisTestMethodClassNotDecorated()
         else:

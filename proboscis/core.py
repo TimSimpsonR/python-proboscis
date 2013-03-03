@@ -20,6 +20,8 @@ import types
 import unittest
 
 
+from proboscis import compatability
+
 class ProboscisTestMethodClassNotDecorated(Exception):
     """
 
@@ -54,7 +56,7 @@ class TestGroup(object):
 
 def transform_depends_on_target(target):
     if isinstance(target, types.MethodType):
-        return target.im_func
+        return compatability.get_method_function(target)
     else:
         return target
 
@@ -153,6 +155,7 @@ class TestEntry(object):
         self.home = home
         self.homes = set([home])
         self.info = info
+        self.__method_cls = None
         self.__method = None
         self.__used_by_factory = False
         for dep_list in (self.info.depends_on, self.info.runs_after):
@@ -184,7 +187,7 @@ class TestEntry(object):
         """True if this entry nests under a class (is a method)."""
         return self.__method is not None
 
-    def mark_as_child(self, method):
+    def mark_as_child(self, method, cls):
         """Marks this as a child so it won't be iterated as a top-level item.
 
         Needed for TestMethods. In Python we decorate functions, not methods,
@@ -196,7 +199,8 @@ class TestEntry(object):
 
         """
         self.__method = method
-        self.homes = set([self.home, self.__method.im_class])
+        self.__method_cls = cls
+        self.homes = set([self.home, cls])
 
     def mark_as_used_by_factory(self):
         """If a Factory returns an instance of a class, the class will not
@@ -209,7 +213,7 @@ class TestEntry(object):
     def method(self):
         """Returns the method represented by this test, if any.
 
-        If this is not None, its im_func will be the same as 'home'.
+        If this is not None, the underlying function will be the same as 'home'.
 
         """
         return self.__method
@@ -264,10 +268,11 @@ class TestRegistry(object):
     def __init__(self):
         self.reset()
 
-    def _change_function_to_method(self, method, cls_info):
+    def _change_function_to_method(self, method, cls, cls_info):
         """Add an entry to a method by altering its function entry."""
-        method_entry = method.im_func._proboscis_entry_
-        method_entry.mark_as_child(method)
+        function = compatability.get_method_function(method)
+        method_entry = function._proboscis_entry_
+        method_entry.mark_as_child(method, cls)
         new_groups = method_entry.info.inherit(cls_info)
         for group_name in new_groups:
             group = self.get_group(group_name)
@@ -380,20 +385,18 @@ class TestRegistry(object):
     def _register_test_class(self, cls, info):
         """Registers the methods within a class."""
         test_entries = []
-        members = inspect.getmembers(cls, inspect.ismethod)
+        methods = compatability.get_class_methods(cls)
         before_class_methods = []
         after_class_methods = []
-        for member in members:
-            method = member[1]
-            if hasattr(method, 'im_func'):
-                func = method.im_func
-                if hasattr(func, "_proboscis_entry_"):
-                    entry = self._change_function_to_method(method, info)
-                    test_entries.append(entry)
-                    if entry.info.before_class:
-                        before_class_methods.append(entry)
-                    elif entry.info.after_class:
-                        after_class_methods.append(entry)
+        for method in methods:
+            func = compatability.get_method_function(method)
+            if hasattr(func, "_proboscis_entry_"):
+                entry = self._change_function_to_method(method, cls, info)
+                test_entries.append(entry)
+                if entry.info.before_class:
+                    before_class_methods.append(entry)
+                elif entry.info.after_class:
+                    after_class_methods.append(entry)
         for before_entry in before_class_methods:
             for test_entry in test_entries:
                 if not test_entry.info.before_class:
