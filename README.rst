@@ -41,6 +41,11 @@ Features
 Updates
 -------
 
+Version 1.2.6.0
+~~~~~~~~~~~~~~~
+
+- Proboscis now works with Python 3!
+
 Version 1.2.5.3
 ~~~~~~~~~~~~~~~
 
