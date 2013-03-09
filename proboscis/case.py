@@ -60,7 +60,7 @@ class TestPlan(object):
             raise RuntimeError("Factory %s returned type %s (rather than an "
                 "instance), which is not allowed." % (factory, instance))
         if isinstance(instance, types.MethodType):
-            home = instance.im_func
+            home = compatability.get_method_function(instance)
         elif isinstance(instance, types.FunctionType):
             home = instance
         else:
@@ -291,7 +291,7 @@ def skippable_func(test_case, func):
                 dependencies.skip_test(test_case, st.message)
         s_func = skip_capture_func
 
-    @wraps(func)
+    @wraps(s_func)
     def testng_method_mistake_capture_func():
         compatability.capture_type_error(s_func)
 

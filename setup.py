@@ -25,7 +25,7 @@ def read(fname):
 
 setup(
     name="proboscis",
-    version="1.2.5.3",
+    version="1.2.6.0",
     author='Rackspace',
     author_email='tim.simpson@rackspace.com',
     description="Extends Nose with certain TestNG like features.",

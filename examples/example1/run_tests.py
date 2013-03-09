@@ -15,7 +15,7 @@ def run_tests():
 
     # Run Proboscis and exit.
     TestProgram().run_and_exit()
-    
+
 
 if __name__ == '__main__':
     run_tests()

@@ -68,7 +68,7 @@ def create_user():
     test_user = admin.create_user(new_user_config)
     assert_equal(test_user.username, new_user_config["username"])
     assert_true(test_user.id is not None)
-    assert_true(isinstance(test_user.id, (types.IntType, types.LongType)))
+    assert_true(isinstance(test_user.id, int))
 
 
 @test(groups=["user", "user.tests"],
@@ -130,4 +130,4 @@ def shut_down():
         mymodule.stop_web_server()
         assert_false(admin.service_is_up())
     mymodule.destroy_database()
-    
+

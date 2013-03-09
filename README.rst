@@ -41,6 +41,17 @@ Features
 Updates
 -------
 
+Version 1.2.6.0
+~~~~~~~~~~~~~~~
+
+- Proboscis now works with Python 3!
+
+Version 1.2.5.3
+~~~~~~~~~~~~~~~
+
+- Fixed bug in runs_after_groups inheritance.
+- Allow "import *" from proboscis asserts.
+
 Version 1.2.5.2
 ~~~~~~~~~~~~~~~
 
