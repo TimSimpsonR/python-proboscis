@@ -121,21 +121,6 @@ class TestPlan(object):
             cases.append(case)
         return cases
 
-    def create_test_suite(self, config, loader):
-        """Transforms the plan into a Nose test suite."""
-        creator = TestSuiteCreator(loader)
-        if dependencies.use_nose:
-            from nose.suite import ContextSuiteFactory
-            suite = ContextSuiteFactory(config)([])
-        else:
-            suite = unittest.TestSuite()
-        for case in self.tests:
-            if case.entry.info.enabled and case.entry.home is not None:
-                tests = creator.loadTestsFromTestEntry(case)
-                for test in tests:
-                    suite.addTest(test)
-        return suite
-
     def filter(self, group_names=None, classes=None, functions=None):
         """Whittles down test list to those matching criteria."""
         test_homes = []
@@ -228,7 +213,7 @@ class TestResultListener():
 
     def onError(self, test):
         """Notify a test entry and its dependents of failure."""
-        if dependencies.use_nose:
+        if dependencies.use_nose and hasattr(test, 'test'):
             root = test.test
         else:
             root = test
@@ -388,6 +373,9 @@ class TestSuiteCreator(object):
     """Turns Proboscis test cases into elements to be run by unittest."""
 
     def __init__(self, loader):
+        from unittest import TestLoader
+        if not isinstance(loader, TestLoader):
+            raise Exception("Blah is of type %s!" % type(loader))
         self.loader = loader
 
     def loadTestsFromTestEntry(self, test_case):
@@ -432,10 +420,151 @@ class TestSuiteCreator(object):
         return suite
 
 
-class TestProgram(dependencies.TestProgram):
+class TestInitiator(object):
+
+    def __init__(self, registry=DEFAULT_REGISTRY, argv=None, groups=None,
+                 show_plan_arg="--show-plan", *args, **kwargs):
+        if "suite" in kwargs:
+            raise ValueError("'suite' is not a valid argument, as Proboscis " \
+                             "creates the suite.")
+        argv = argv or sys.argv
+        self.groups = groups or []
+        self.show_plan_arg_name = show_plan_arg
+        self._arg_show_plan = False
+        self._filter_command_line_args(argv)
+        self.plan = TestPlan.create_from_registry(registry)
+        if len(self.groups) > 0:
+            self.plan.filter(group_names=self.groups)
+        self.cases = self.plan.tests
+
+    def create_test_runner(self, stream):
+        runner_cls = test_runner_cls(dependencies.TextTestRunner,
+                                         "ProboscisTestRunner")
+        return runner_cls(stream, verbosity=3)
+
+
+    def _filter_command_line_arg(self, arg):
+        if arg[:8] == "--group=":
+            self.groups.append(arg[8:])
+        elif arg == self.show_plan_arg_name:
+            self._arg_show_plan = True
+        else:
+            return False
+        return True
+
+    def _filter_command_line_args(self, argv):
+        """
+        Given the command line arguments, finds and records Proboscis only
+        options and returns a filtered list of arguments which can be
+        forwarded to other test frameworks (for example, Nose).
+        """
+        self.argv = [argv[0]]
+        for arg in argv[1:]:
+            if not self._filter_command_line_arg(arg):
+                self.argv.append(arg)
+
+    def show_plan(self):
+        """Prints information on test entries and the order they will run."""
+        print("   *  *  *  Test Plan  *  *  *")
+        for case in self.cases:
+            case.write_doc(sys.stdout)
+
+
+class UnittestTestInitator(dependencies.TestProgram, TestInitiator):
     """Use this to run Proboscis.
 
-    Translates the Proboscis test registry into types used by Nose or unittest
+    Translates the Proboscis test registry into types used by unittest
+    in order to run the program.
+
+    Most arguments to this are simply passed to Nose or unittest's TestProgram
+    class.
+
+    For most cases using the default arguments works fine.
+
+    :param registry: The test registry to use. If unset uses the default global
+                     registry.
+    :param groups: A list of strings representing the groups of tests to run.
+                   The list is added to by parsing the argv argument. If unset
+                   then all groups are run.
+    :param testLoader: The test loader. By default, its unittest.TestLoader.
+    :param config: The config passed to Nose or unittest.TestProgram. The
+                   config determines things such as plugins or output streams,
+                   so it may be necessary to create this for advanced use
+                   cases.
+    :param plugins: Nose plugins. Similar to config it may be necessary to
+                    set this in an advanced setup.
+    :param env: By default is os.environ. This is used only by Nose.
+    :param testRunner: By default Proboscis uses its own. If this is set
+                       however care must be taken to avoid breaking Proboscis's
+                       automatic skipping of tests on dependency failures.
+                       In particular, _makeResult must return a subclass of
+                       proboscis.TestResult which calls
+                       proboscis.TestResult.onError at the start of the
+                       addFailure and addError methods.
+    :param stream: By default this is standard out.
+    :param argv: By default this is sys.argv. Proboscis parses this for the
+                 --group argument.
+    """
+    def __init__(self,
+                 registry=DEFAULT_REGISTRY,
+                 groups=None,
+                 testLoader=None,
+                 testRunner=None,
+                 stream=None,
+                 argv=None,
+                 env=None,
+                 *args, **kwargs):
+        TestInitiator.__init__(self, registry=registry, argv=argv,
+                               groups=groups, testRunner=testRunner)
+        self.__loader = testLoader or unittest.TestLoader()
+
+        if OVERRIDE_DEFAULT_STREAM:
+            stream = OVERRIDE_DEFAULT_STREAM
+
+        if env is None:
+            env = os.environ
+        stream = stream or sys.stdout
+
+        rootSuite = None  # Use defaults.
+        testRunner = testRunner or self.create_test_runner(stream)
+
+        if len(self.groups) > 0:
+            self.plan.filter(group_names=groups)
+        self.cases = self.plan.tests
+        if self._arg_show_plan:
+            self.__run = self.show_plan
+        else:
+            self.__suite = self._create_test_suite()
+            def run():
+               dependencies.TestProgram.__init__(
+                    self,
+                    suite=self.__suite,
+                    testLoader=testLoader,  # Pass arg, not what we create
+                    testRunner=testRunner,
+                    argv=argv,
+                    *args, **kwargs
+                )
+            self.__run = run
+
+    def _create_test_suite(self):
+        """Transforms the plan into a Nose test suite."""
+        creator = TestSuiteCreator(self.__loader)
+        suite = unittest.TestSuite()
+        for case in self.plan.tests:
+            if case.entry.info.enabled and case.entry.home is not None:
+                tests = creator.loadTestsFromTestEntry(case)
+                for test in tests:
+                    suite.addTest(test)
+        return suite
+
+    def run_and_exit(self):
+        self.__run()
+
+
+class NoseTestProgram(dependencies.TestProgram, TestInitiator):
+    """Use this to run Proboscis.
+
+    Translates the Proboscis test registry into types used by Nose
     in order to run the program.
 
     Most arguments to this are simply passed to Nose or unittest's TestProgram
@@ -475,16 +604,14 @@ class TestProgram(dependencies.TestProgram):
                  plugins=None,
                  env=None,
                  testRunner=None,
+                 testRunMethod=None,
                  stream=None,
                  argv=None,
+                 testMethod=None,
                  *args, **kwargs):
-        groups = groups or []
-        argv = argv or sys.argv
-        argv = self.extract_groups_from_argv(argv, groups)
-        if "suite" in kwargs:
-            raise ValueError("'suite' is not a valid argument, as Proboscis " \
-                             "creates the suite.")
-
+        TestInitiator.__init__(self, registry=registry, argv=argv,
+                               groups=groups, testRunner=testRunner)
+        self.nose_config = config
         self.__loader = testLoader or unittest.TestLoader()
 
         if OVERRIDE_DEFAULT_STREAM:
@@ -499,23 +626,24 @@ class TestProgram(dependencies.TestProgram):
 
         stream = stream or sys.stdout
 
-        if testRunner is None:
-            runner_cls = test_runner_cls(dependencies.TextTestRunner,
-                                         "ProboscisTestRunner")
-            if dependencies.use_nose:
-                testRunner = runner_cls(stream,
-                                        verbosity=3,  # config.verbosity,
-                                        config=config)
-            else:
-                testRunner = runner_cls(stream, verbosity=3)
+        if dependencies.use_nose:
+            from nose.suite import ContextSuiteFactory
+            rootSuite = ContextSuiteFactory(config)([])
 
-        #registry.sort()
+        else:
+            rootSuite = None  # Use defaults.
+
+
+        testRunner = testRunner or self.create_test_runner(stream)
+
         self.plan = TestPlan.create_from_registry(registry)
 
-        if len(groups) > 0:
-            self.plan.filter(group_names=groups)
+
+
+        if len(self.groups) > 0:
+            self.plan.filter(group_names=self.groups)
         self.cases = self.plan.tests
-        if "--show-plan" in argv:
+        if self._arg_show_plan:
             self.__run = self.show_plan
         else:
             self.__suite = self.create_test_suite_from_entries(config,
@@ -545,28 +673,33 @@ class TestProgram(dependencies.TestProgram):
                     )
             self.__run = run
 
+    def create_test_runner(self, stream):
+        runner_cls = test_runner_cls(dependencies.TextTestRunner,
+                                         "ProboscisTestRunner")
+        return runner_cls(stream,
+                          verbosity=3,  # config.verbosity,
+                          config=self.nose_config)
+
+    def _create_test_suite(self, config, loader):
+        """Transforms the plan into a Nose test suite."""
+        if not hasattr(loader, 'getTestCaseNames'):
+            raise Exception("Blah is of type %s!" % type(loader))
+        creator = TestSuiteCreator(loader)
+        if dependencies.use_nose:
+            from nose.suite import ContextSuiteFactory
+            suite = ContextSuiteFactory(config)([])
+        else:
+            suite = unittest.TestSuite()
+        for case in self.plan.tests:
+            if case.entry.info.enabled and case.entry.home is not None:
+                tests = creator.loadTestsFromTestEntry(case)
+                for test in tests:
+                    suite.addTest(test)
+        return suite
+
     def create_test_suite_from_entries(self, config, cases):
         """Creates a suite runnable by unittest."""
-        return self.plan.create_test_suite(config, self.__loader)
-
-    def extract_groups_from_argv(self, argv, groups):
-        """Given argv, records the "--group" options.
-
-        :param argv: A list of arguments, such as sys.argv.
-        :param groups: A list of strings for each group to run which is added
-                       to.
-
-        Returns a copy of param argv with the --group options removed. This is
-        useful if argv needs to be passed to another program such as Nose.
-
-        """
-        new_argv = [argv[0]]
-        for arg in argv[1:]:
-            if arg[:8] == "--group=":
-                groups.append(arg[8:])
-            else:
-                new_argv.append(arg)
-        return new_argv
+        return self._create_test_suite(config, self.__loader)
 
     def run_and_exit(self):
         """Calls unittest or Nose to run all tests.
@@ -585,3 +718,11 @@ class TestProgram(dependencies.TestProgram):
     @property
     def test_suite(self):
         return self.__suite
+
+
+
+# For backwards compatability... sigh...
+if  dependencies.use_nose:
+    TestProgram = NoseTestProgram
+else:
+    TestProgram = PlainTestProgram
