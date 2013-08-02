@@ -107,7 +107,7 @@ class WhenConnectingAsANormalUser(unittest.TestCase):
       always_run=True)
 def delete_user():
     """Delete the user."""
-    test_user = None
+    global test_user
     if test_user is None:
         raise SkipTest("User tests were never run.")
     admin = mymodule.get_admin_client()
