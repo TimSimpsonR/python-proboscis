@@ -41,6 +41,11 @@ Features
 Updates
 -------
 
+Version 1.2.7.0
+~~~~~~~~~~~~~~~
+
+- Proboscis now has experimental support for Subunit and TestRepository.
+
 Version 1.2.6.0
 ~~~~~~~~~~~~~~~
 
