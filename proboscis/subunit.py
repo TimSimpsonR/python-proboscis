@@ -20,9 +20,11 @@ import sys
 import unittest
 
 from subunit import TestProtocolClient
-
+from subunit.test_results import AutoTimingTestResultDecorator
+from subunit.run import SubunitTestRunner
 
 from proboscis.case import TestInitiator
+from proboscis.case import TestResultListener
 from proboscis.case import TestSuiteCreator
 
 
@@ -96,24 +98,64 @@ def is_root_case(case):
 #             root_suite.addTest(suite)
 #     return root_suite
 
-def create_testr_parallel_suite(plan, test_loader=None, root_suite=None):
+
+# def filter_by_string(self, filters):
+#         filtered_list = []
+#         while self.tests:
+#             case = self.tests.pop()
+#             if case.id() in filters:
+#                 filtered_list.append(case)
+#         self.tests =
+
+def case_in_filter(case, filters):
+    print("MARIO\n%s" % case)
+    #raise Exception("MARIO\n'%s'='%s'" % (case.entry.home.__name__, filters))
+    #return case.entry.home.__name__ in filters
+    if hasattr(case.entry, 'home') and case.entry.home is not None:
+    #if case.entry.home is not None:
+        return case.entry.home.__name__ in filters
+    else:
+        return False
+
+
+def create_testr_parallel_suite(plan, filters):
     """
     Given a plan, creates a test suite which has only top level entries which
     are themselves suites. The idea is that each of these suites could then
     run in a seperate process as they are an independent chain of dependencies.
     """
-    test_loader = test_loader or unittest.TestLoader()
+    test_loader = unittest.TestLoader()
     #root_suite = root_suite or unittest.TestSuite()
     root_suite = unittest.TestSuite()
     creator = TestSuiteCreator(test_loader)
     procs = ProcOrganizer(plan).procs
     for proc in procs:
-        from subunit import IsolatedTestSuite
-        proc_suite = IsolatedTestSuite()
+        # from subunit import IsolatedTestSuite
+        # proc_suite = IsolatedTestSuite()
+        from unittest import TestSuite
+        proc_suite = TestSuite()
         cases = sorted(list(proc), key=lambda x : x._order)
-        for case in cases:
-            add_case_to_suite(creator, case, proc_suite)
-        root_suite.addTest(proc_suite)
+        if len(cases) > 0:
+            first_case = cases[0]
+            if not filters or case_in_filter(first_case, filters):
+                for case in cases:
+                    add_case_to_suite(creator, case, proc_suite)
+                root_suite.addTest(proc_suite)
+    return root_suite
+
+
+def create_testr_list_suite(plan, test_loader=None):
+    test_loader = test_loader or unittest.TestLoader()
+    creator = TestSuiteCreator(test_loader)
+    root_suite = unittest.TestSuite()
+    procs = ProcOrganizer(plan).procs
+    for proc in procs:
+        cases = sorted(list(proc), key=lambda x : x._order)
+        if len(cases) > 0:
+            from unittest import TestSuite
+            proc_suite = TestSuite()
+            add_case_to_suite(creator, cases[0], proc_suite)
+            root_suite.addTest(proc_suite)
     return root_suite
 
 
@@ -171,16 +213,55 @@ class SubUnitLoader(object):
        pass
 
 
+
+
+from testtools import ExtendedToStreamDecorator
+
+class TestResult(TestResultListener, ExtendedToStreamDecorator):
+
+    def __init__(self, *args, **kwargs):
+        TestResultListener.__init__(self, ExtendedToStreamDecorator)
+        ExtendedToStreamDecorator.__init__(self, *args, **kwargs)
+
+
+class SubunitProboscisTestRunner(SubunitTestRunner):
+
+    def run(self, test):
+        "Run the given test case or test suite."
+        result = TestProtocolClient(self.stream)
+        result = AutoTimingTestResultDecorator(result)
+        if self.failfast is not None:
+            result.failfast = self.failfast
+        test(result)
+        return result
+
+
+def subunit_replacement_run_method(self, test):
+    "Run the given test case or test suite."
+    result = self._list(test)
+    result = TestResult(result)
+    result = AutoTimingTestResultDecorator(result)
+    if self.failfast is not None:
+        result.failfast = self.failfast
+    result.startTestRun()
+    try:
+        test(result)
+    finally:
+        result.stopTestRun()
+    return result
+
+
 class SubUnitInitiator(TestInitiator):
 
     def __init__(self, argv=None, stream=None):
+        self.filters = []
         TestInitiator.__init__(self, argv=argv, show_plan_arg="--list")
         self.argv = argv
         self._show_best_proc_count = False
         self.stream = stream or sys.stdout
 
     def _create_test_suite(self):
-        return create_testr_parallel_suite(self.plan)
+        return create_testr_parallel_suite(self.plan, self.filters)
 
     def discover_and_exit(self):
         self.run_and_exit()
@@ -191,7 +272,21 @@ class SubUnitInitiator(TestInitiator):
             return True
         if arg == "--best-proc-count":
             self._show_best_proc_count = True
+        if arg == "--load-list":
+            pass  # TODO(tim.simpson): This, somehow.
         return super(SubUnitInitiator, self)._filter_command_line_arg(arg)
+
+    def _filter_command_line_args(self, argv):
+        for index in range(len(argv) - 2):
+            if argv[index + 1] == "--load-list":
+                file_name = argv[index + 2]
+                self._load_filter(file_name)
+
+        return super(SubUnitInitiator, self)._filter_command_line_args(argv)
+
+    def _load_filter(self, file_name):
+        with open(file_name) as f:
+            self.filters.append(f.readline().strip())
 
     def load_id_file(self, id_file):
         with open(id_file) as file:
@@ -209,6 +304,11 @@ class SubUnitInitiator(TestInitiator):
     def run_tests(self):
         from subunit.run import SubunitTestRunner
         runner = SubunitTestRunner(stream=self.stream)
+
+        def new_run(*args, **kwargs):
+            return subunit_replacement_run_method(runner, *args, **kwargs)
+
+        runner.run = new_run
 
         suite = self._create_test_suite()
         from subunit import TestProtocolClient
@@ -250,7 +350,11 @@ class SubUnitInitiator(TestInitiator):
 
     def show_plan(self):
         """Prints information on test entries and the order they will run."""
-        for case in self.cases:
-            if case.entry.home is not None:
-                self.stream.write('%s ' % case.entry.home.__name__)
+        runner = SubunitTestRunner(stream=self.stream)
+        suite = create_testr_list_suite(self.plan)
+        runner.list(suite)
+
+        # for case in self.cases:
+        #     if case.entry.home is not None:
+        #         self.stream.write('%s ' % case.entry.home.__name__)
 

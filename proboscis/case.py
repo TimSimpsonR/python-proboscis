@@ -213,7 +213,7 @@ class TestResultListener():
 
     def onError(self, test):
         """Notify a test entry and its dependents of failure."""
-        if dependencies.use_nose:
+        if dependencies.use_nose and hasattr(test, 'test'):
             root = test.test
         else:
             root = test
