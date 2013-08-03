@@ -3,7 +3,7 @@ This is just a simple test file meant to show and test dependency chains.
 """
 
 import time
-
+import unittest
 
 from proboscis.asserts import assert_equal
 from proboscis.asserts import assert_false
@@ -103,5 +103,15 @@ def gc4():
 @test(groups=["GABC"], depends_on=[ga3, gb3, gc3], enabled=False)
 def ga3b3c3():
     pass
+
+
+@test
+class ClassA(unittest.TestCase):
+
+    def setUp(self):
+        pass
+
+    def test1(self):
+        self.assertEqual(1, 2)
 
 
