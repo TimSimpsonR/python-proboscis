@@ -1,10 +1,23 @@
 """
+Proboscis Subunit / TestRepository Support
+==========================================
+
 Contains methods and classes to make a Proboscis test suite compatable with
 Test Repository, subunit, and its friends.
 
-There's two methods to achieve parallel execution using testr:
+This functionality is currently in Beta. It can currently only be used with a
+subset of TestR's functionality.
 
-1. Ask it to only all tests which depend on each other in some way in the
+
+Explanation
+-----------
+
+Because there is a philosophical impedance between Proboscis and TestR it is
+difficult to translate the model of the former to the later.
+
+There are two methods to achieve parallel execution using TestR:
+
+1. Ask it to only run all tests which depend on each other in some way in the
    same process. This way nothing breaks, though the bottleneck becomes the
    slowest executing chain of tests.
 2. Change every test which is a dependency to a test resource. I'm not sure
@@ -13,15 +26,53 @@ There's two methods to achieve parallel execution using testr:
 
 For now, this module attempts style #1.
 
+
+Known issues
+------------
+
+* TestR chooses whether or not to run tests in parallel by deciding how long
+  things seems to take. In theory, it will run as much in parallel as possible.
+  However, you can double check by calling this script directly with the
+  --best-proc-count argument, which will cause the number of processes, or
+  "chains", to print out. Another way to trouble shoot things is to call
+  the script with "--show-plan" which for subunit will list out all tests, in
+  order, according to their individual process / chain.
+* TestR will first call this script with "--list" at which point a "shallow"
+  list, containing only the first test of each chain, will be returned. The
+  idea is that this forces TestR to only parallelize the test list based on
+  chains, allowing tests within a chain to still depend on each other within
+  a process. However, when running, all test results are reported via stdout,
+  giving TestR the knowledge of these tests. It may then pass back these tests
+  within the chains if the "--failing" option is used. There is logic in place
+  currently to filter by looking through all tests in a chain and if any match,
+  to run the entire chain. In practice however this does not always work and
+  the results of using the --failing option with TestR seem to be random.
+
+
+Misc
+----
+
+The environment variable "FORCE_FORK" can be specified to "chain" to be created
+using subunit's IsolatedTestSuite rather than a normal TestSuite; this causes
+the process to fork when running. Note that this is not the same as running in
+parallel, and is done simply to make tests run in an independent process in
+case something crashes. It also gets in the way of Proboscis's ability to
+skip dependent tests when their dependencies fail. This is mainly useful to
+ensure chains can in fact operate in their own process and that their test's
+dependencies have been fully specified.
+
 """
 from __future__ import absolute_import
 
+import os
 import sys
 import unittest
 
+from subunit import IsolatedTestSuite
 from subunit import TestProtocolClient
 from subunit.test_results import AutoTimingTestResultDecorator
 from subunit.run import SubunitTestRunner
+from testtools import ExtendedToStreamDecorator
 
 from proboscis.case import TestInitiator
 from proboscis.case import TestResultListener
@@ -30,17 +81,28 @@ from proboscis.case import TestSuiteCreator
 
 
 class ProcOrganizer(object):
+    """
+    Given a Proboscis TestPlan object, this iterates the tests and deduces all
+    independent "chains", which are all tests that depend on each other and
+    would need to run in the same process.
+    """
 
     def __init__(self, plan):
         self.case_to_proc = {}
         self.procs = []
         index = 0
+        cases = []
         for case in plan.tests:
-            case._order = index
-            index += 1
-            self.place_case(case)
+            if should_run(case):
+                case._order = index
+                index += 1
+                cases.append(case)
+            else:
+                case._order = None
+        for case in cases:
+            self._place_case(case)
 
-    def get_proc(self, case):
+    def _get_proc(self, case):
         proc = self.case_to_proc.get(case)
         if not proc:
             proc = set((case, ))
@@ -48,7 +110,7 @@ class ProcOrganizer(object):
             self.case_to_proc[case] = proc
         return proc
 
-    def move_case_to_proc(self, case, proc):
+    def _move_case_to_proc(self, case, proc):
         def change_refs(old_p, new_p):
             for c in old_p:
                 self.case_to_proc[c] = new_p
@@ -66,85 +128,67 @@ class ProcOrganizer(object):
             change_refs(old_proc, new_proc)
             change_refs(proc, new_proc)
 
-    def place_case(self, case):
-        proc = self.get_proc(case)
+    def _place_case(self, case):
+        proc = self._get_proc(case)
         for dep in case.dependents:
-            self.move_case_to_proc(dep.case, proc)
+            if (dep.case._order is not None):  # make sure it needs to run
+                self._move_case_to_proc(dep.case, proc)
 
 
 
 def should_run(case):
+    """Returns true if a case actually does anything."""
     return case.entry.info.enabled and case.entry.home is not None
 
 
-def is_root_case(case):
-    info = case.entry.info
-    return not (info.depends_on or info.depends_on_groups)
-
-# def create_testr_parallel_suite(plan, test_loader=None, root_suite=None):
-#     """
-#     Given a plan, creates a test suite which has only top level entries which
-#     are themselves suites. The idea is that each of these suites could then
-#     run in a seperate process as they are an independent chain of dependencies.
-#     """
-#     test_loader = test_loader or unittest.TestLoader()
-#     #root_suite = root_suite or unittest.TestSuite()
-#     root_suite = unittest.TestSuite()
-#     creator = TestSuiteCreator(test_loader)
-#     for case in plan.tests:
-#         info = case.entry.info
-#         if should_run(case) and is_root_case(case):
-#             suite = create_testr_nested_suite(creator, case)
-#             root_suite.addTest(suite)
-#     return root_suite
-
-
-# def filter_by_string(self, filters):
-#         filtered_list = []
-#         while self.tests:
-#             case = self.tests.pop()
-#             if case.id() in filters:
-#                 filtered_list.append(case)
-#         self.tests =
-
 def case_in_filter(case, filters):
-    print("MARIO\n%s" % case)
-    #raise Exception("MARIO\n'%s'='%s'" % (case.entry.home.__name__, filters))
-    #return case.entry.home.__name__ in filters
+    """True if the case is refered to by one of the given subunit filters."""
     if hasattr(case.entry, 'home') and case.entry.home is not None:
-    #if case.entry.home is not None:
         return case.entry.home.__name__ in filters
     else:
         return False
 
 
-def create_testr_parallel_suite(plan, filters):
+def any_case_in_filter(cases, filters):
+    """True if any of the cases are referenced by the given subunit filters."""
+    for case in cases:
+        if case_in_filter(case, filters):
+            return True
+    return False
+
+
+def create_testr_parallel_suite(plan, filters, force_fork):
     """
     Given a plan, creates a test suite which has only top level entries which
-    are themselves suites. The idea is that each of these suites could then
+    are themselves suites. The idea is that each of these suites can then
     run in a seperate process as they are an independent chain of dependencies.
     """
     test_loader = unittest.TestLoader()
-    #root_suite = root_suite or unittest.TestSuite()
     root_suite = unittest.TestSuite()
     creator = TestSuiteCreator(test_loader)
     procs = ProcOrganizer(plan).procs
     for proc in procs:
-        # from subunit import IsolatedTestSuite
-        # proc_suite = IsolatedTestSuite()
-        from unittest import TestSuite
-        proc_suite = TestSuite()
+        if force_fork:
+            proc_suite = IsolatedTestSuite()
+        else:
+            proc_suite = unittest.TestSuite()
         cases = sorted(list(proc), key=lambda x : x._order)
-        if len(cases) > 0:
-            first_case = cases[0]
-            if not filters or case_in_filter(first_case, filters):
-                for case in cases:
+        if not filters or any_case_in_filter(cases, filters):
+            for case in cases:
+                if should_run(case):
                     add_case_to_suite(creator, case, proc_suite)
-                root_suite.addTest(proc_suite)
+            root_suite.addTest(proc_suite)
     return root_suite
 
 
 def create_testr_list_suite(plan, test_loader=None):
+    """
+    Given a plan, creates a test suite which has only top level entries which
+    are themselves suties. Unlike create_testr_parallel_suite though these
+    suites only have a single entry. This is so the other tests will be hidden
+    from TestRepository, forcing it to split up the load based on chains
+    instead of tests.
+    """
     test_loader = test_loader or unittest.TestLoader()
     creator = TestSuiteCreator(test_loader)
     root_suite = unittest.TestSuite()
@@ -152,92 +196,37 @@ def create_testr_list_suite(plan, test_loader=None):
     for proc in procs:
         cases = sorted(list(proc), key=lambda x : x._order)
         if len(cases) > 0:
-            from unittest import TestSuite
-            proc_suite = TestSuite()
+            proc_suite = unittest.TestSuite()
             add_case_to_suite(creator, cases[0], proc_suite)
             root_suite.addTest(proc_suite)
     return root_suite
 
 
 def add_case_to_suite(creator, case, suite):
+    """Translates a Proboscis TestCase into subunit test suites."""
     tests = creator.loadTestsFromTestEntry(case)
     for test in tests:
         suite.addTest(test)
 
 
-def create_testr_nested_suite(creator, case, suite=None, dependents=None,
-                              next_dependents=None):
-    """
-    Given a creator function which can load tests from a Proboscis test entry,
-    and a test case which has dependents, creates a suite. The idea is that
-    this suite could run in it's own process where one thing dependents on
-    another.
-    The other idea is that for TestR discovery, this suite will appear by
-    itself during the discovery phase without advertising its children,
-    so that TestR will run it alone. When it is actually run it will begin to
-    run all of it's nested children which will all be reported as test
-    results.
-    """
-    from subunit import IsolatedTestSuite
-    suite = suite or IsolatedTestSuite()
-    add_case_to_suite(creator, case, suite)
-    dependents = dependents or []
-    next_dependents = next_dependents or []
-    new_dependents = dependents + next_dependents
-    for node in case.dependents:
-        if not node.case.entry.home not in [node.case.entry.home
-                                            for node in dependents]:
-            create_testr_nested_suite(creator, node.case, suite, new_dependents,
-                                      next_dependents = cast.dependents)
-    return suite
-
-
-class SubUnitLoader(object):
-
-    def discover(self, start_dir, pattern='test*.py', top_level_dir=None):
-        pass
-
-    def getTestCaseNames(self, testCaseClass):
-        pass
-
-    def loadTestsFromModule(self, module, use_load_tests=True):
-       pass
-
-    def loadTestsFromName(self, name, module=None):
-       pass
-
-    def loadTestsFromNames(self, names, module=None):
-       pass
-
-    def loadTestsFromTestCase(self, testCaseClass):
-       pass
-
-
-
-
-from testtools import ExtendedToStreamDecorator
-
 class TestResult(TestResultListener, ExtendedToStreamDecorator):
+    """
+    Extension of subunit TestResult that works with TestRepository while also
+    supporting Proboscis's ability to skip dependent tests when their
+    dependencies fail.
+    """
 
     def __init__(self, *args, **kwargs):
         TestResultListener.__init__(self, ExtendedToStreamDecorator)
         ExtendedToStreamDecorator.__init__(self, *args, **kwargs)
 
 
-class SubunitProboscisTestRunner(SubunitTestRunner):
-
-    def run(self, test):
-        "Run the given test case or test suite."
-        result = TestProtocolClient(self.stream)
-        result = AutoTimingTestResultDecorator(result)
-        if self.failfast is not None:
-            result.failfast = self.failfast
-        test(result)
-        return result
-
-
 def subunit_replacement_run_method(self, test):
-    "Run the given test case or test suite."
+    """
+    Replacement for SubunitTestRunner's run method which uses a TestResult
+    class compatable both with Proboscis's dependent test skip mechanism and
+    Subunit's reporting capabilities.
+    """
     result = self._list(test)
     result = TestResult(result)
     result = AutoTimingTestResultDecorator(result)
@@ -251,17 +240,24 @@ def subunit_replacement_run_method(self, test):
     return result
 
 
-class SubUnitInitiator(TestInitiator):
+class SubunitInitiator(TestInitiator):
+    """
+    Pass control to this class from a script to execute tests using Subunit.
+    """
 
     def __init__(self, argv=None, stream=None):
         self.filters = []
-        TestInitiator.__init__(self, argv=argv, show_plan_arg="--list")
-        self.argv = argv
+        self._force_fork = False
         self._show_best_proc_count = False
+        self._list_for_testr = False
+        TestInitiator.__init__(self, argv=argv)
+        self._force_fork = os.environ.get("FORCE_FORK") is not None
+        self.argv = argv
         self.stream = stream or sys.stdout
 
     def _create_test_suite(self):
-        return create_testr_parallel_suite(self.plan, self.filters)
+        return create_testr_parallel_suite(self.plan, self.filters,
+                                           self._force_fork)
 
     def discover_and_exit(self):
         self.run_and_exit()
@@ -272,9 +268,11 @@ class SubUnitInitiator(TestInitiator):
             return True
         if arg == "--best-proc-count":
             self._show_best_proc_count = True
-        if arg == "--load-list":
-            pass  # TODO(tim.simpson): This, somehow.
-        return super(SubUnitInitiator, self)._filter_command_line_arg(arg)
+        if arg == "--failing":
+            self._force_fork = True
+        if arg == "--list":
+            self._list_for_testr = True
+        return super(SubunitInitiator, self)._filter_command_line_arg(arg)
 
     def _filter_command_line_args(self, argv):
         for index in range(len(argv) - 2):
@@ -282,7 +280,13 @@ class SubUnitInitiator(TestInitiator):
                 file_name = argv[index + 2]
                 self._load_filter(file_name)
 
-        return super(SubUnitInitiator, self)._filter_command_line_args(argv)
+        return super(SubunitInitiator, self)._filter_command_line_args(argv)
+
+    def list_for_testr(self):
+        """Prints information on test entries and the order they will run."""
+        runner = SubunitTestRunner(stream=self.stream)
+        suite = create_testr_list_suite(self.plan)
+        runner.list(suite)
 
     def _load_filter(self, file_name):
         with open(file_name) as f:
@@ -296,6 +300,8 @@ class SubUnitInitiator(TestInitiator):
     def run_and_exit(self):
         if self._arg_show_plan:
             self.show_plan()
+        elif self._list_for_testr:
+            self.list_for_testr()
         elif self._show_best_proc_count:
             self.show_best_proc_count()
         else:
@@ -309,35 +315,10 @@ class SubUnitInitiator(TestInitiator):
             return subunit_replacement_run_method(runner, *args, **kwargs)
 
         runner.run = new_run
-
         suite = self._create_test_suite()
         from subunit import TestProtocolClient
         from subunit.test_results import AutoTimingTestResultDecorator
-        result = TestProtocolClient(self.stream)
-        result = AutoTimingTestResultDecorator(result)
-        #suite(result)  # <--- runs the tests
-
         result = runner.run(suite)
-
-
-        #suite.run(result) #result.run(suite)
-
-        # from subunit.run import SubunitTestRunner
-        # from subunit.run import SubunitTestProgram
-        # runner = SubunitTestRunner(stream=self.stream)
-        # loader = SubUnitLoader()
-        # SubunitTestProgram(
-        #     module=None,
-        #     argv=self.argv,
-        #     suite=suite,
-        #     testRunner=runner,
-        #     testLoader=loader,
-        #     stdout=sys.std  out)
-        # print("\n\nMARIO: SUCCESS? %s" % result)
-        # print("\n\nMARIO: SUCCESS? %s" % result.wasSuccessful())
-        # print("\n\nMARIO: SUCCESS? %s" % result.testsRun)
-        # print("\n\nMARIO: SUCCESS? %s" % suite)
-
         if not result.wasSuccessful():
             sys.exit(1)
         return result
@@ -347,14 +328,12 @@ class SubUnitInitiator(TestInitiator):
         print("best proc count = %d" % len(procs))
         sys.exit(0)
 
-
     def show_plan(self):
-        """Prints information on test entries and the order they will run."""
-        runner = SubunitTestRunner(stream=self.stream)
-        suite = create_testr_list_suite(self.plan)
-        runner.list(suite)
+        procs = ProcOrganizer(self.plan).procs
+        for index, proc in enumerate(procs):
+            print("CHAIN %d:" % index)
+            for case in proc:
+                print("\t%s" % case)
+        sys.exit(0)
 
-        # for case in self.cases:
-        #     if case.entry.home is not None:
-        #         self.stream.write('%s ' % case.entry.home.__name__)
 
