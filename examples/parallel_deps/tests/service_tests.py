@@ -80,4 +80,15 @@ def gc3():
     counter += 1
     assert_equal(3, counter)
 
+@test(groups=["GC"], depends_on=[gc3])
+def gc4():
+    global counter
+    counter += 1
+    assert_equal(4, counter)
+
+
+@test(groups=["GABC"], depends_on=[ga3, gb3, gc3])
+def ga3b3c3():
+    pass
+
 
