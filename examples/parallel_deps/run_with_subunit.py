@@ -20,8 +20,8 @@ def run_tests():
              depends_on_groups=["fast", "integration"])
 
     # Run Proboscis and exit.
-    from proboscis.subunit import SubUnitInitiator
-    SubUnitInitiator().run_and_exit()
+    from proboscis.subunit import SubunitInitiator
+    SubunitInitiator().run_and_exit()
 
 
 def testsuite():
