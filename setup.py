@@ -33,7 +33,7 @@ setup(
     long_description="Proboscis is a Python test framework that extends "
                     "Python's built-in unittest module and Nose with "
                     "features from TestNG.",
-    url='https://github.com/rackspace/python-proboscis',
+    url='https://github.com/rackerlabs/python-proboscis',
     license='Apache',
     classifiers = [
         'Development Status :: 5 - Production/Stable',
