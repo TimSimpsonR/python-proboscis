@@ -65,7 +65,7 @@ class TestCheckerWithBlock(unittest.TestCase):
             msg = str(ae)
             assert_true("2 != 27" in msg, msg)
             assert_true("39 != 37" in msg, msg)
-            assert_true("CAT != RAT" in msg, msg)
+            assert_true("'CAT' != 'RAT'" in msg, msg)
 
     def test_when_no_failures_happen_but_an_error_occurs(self):
         # The exception is *not* wrapped as ASSERTION_ERROR because no failures

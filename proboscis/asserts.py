@@ -49,7 +49,7 @@ def assert_equal(actual, expected, message=None):
         return
     if not message:
         try:
-            message = "%s != %s" % (actual, expected)
+            message = "%r != %r" % (actual, expected)
         except Exception:
             message = "The actual value did not equal the expected one."
     raise ASSERTION_ERROR(message)
@@ -80,7 +80,7 @@ def assert_is(actual, expected, message=None):
         return
     if not message:
         try:
-            message = "%s is not %s" % (actual, expected)
+            message = "%r is not %r" % (actual, expected)
         except Exception:
             message = "The actual value is not the expected one."
     raise ASSERTION_ERROR(message)
@@ -97,7 +97,7 @@ def assert_is_none(value, message=None):
         return
     if not message:
         try:
-            message = "%s is not None" % value
+            message = "%r is not None" % value
         except Exception:
             message = "The value is not None."
     raise ASSERTION_ERROR(message)
@@ -115,7 +115,7 @@ def assert_is_not(actual, expected, message=None):
         return
     if not message:
         try:
-            message = "%s is %s" % (actual, expected)
+            message = "%r is %r" % (actual, expected)
         except Exception:
             message = "The actual value is the expected one."
     raise ASSERTION_ERROR(message)
@@ -145,7 +145,7 @@ def assert_not_equal(actual, expected, message=None):
         return
     if not message:
         try:
-            message = "%s == %s" % (actual, expected)
+            message = "%r == %r" % (actual, expected)
         except Exception:
             message = "The actual value equalled the expected one."
     raise ASSERTION_ERROR(message)

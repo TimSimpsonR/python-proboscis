@@ -26,6 +26,9 @@ class BadClass(object):
     def __str__(self):
         raise RuntimeError()
 
+    def __repr__(self):
+        raise RuntimeError()
+
 
 class MyException(RuntimeError):
     pass
