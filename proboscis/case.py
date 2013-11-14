@@ -226,6 +226,10 @@ class TestResultListener():
         self.onError(test)
         self.chain_to_cls.addFailure(self, test, err)
 
+    def addSkip(self, test, err):
+        self.onError(test)
+        self.chain_to_cls.addSkip(self, test, err)
+
     def onError(self, test):
         """Notify a test entry and its dependents of failure."""
         if dependencies.use_nose:
